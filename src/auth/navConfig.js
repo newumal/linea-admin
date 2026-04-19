@@ -1,6 +1,9 @@
 /** Keep aligned with `linea-admin-api` `STAFF_ROLES` / plan RBAC. */
 export const STAFF_ROLES = ['super_admin', 'admin', 'ops', 'merchandiser', 'marketer', 'analyst'];
 
+/** Matches `ORDER_OPS_ROLES` on admin-api — orders/pre-orders mutations. */
+export const ORDER_OPS_ROLES = ['super_admin', 'admin', 'ops'];
+
 /** @type {{ to: string, label: string, roles: string[] }[]} */
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', roles: STAFF_ROLES },

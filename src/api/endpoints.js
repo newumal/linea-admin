@@ -12,3 +12,16 @@ export const AUTH = {
   logout: '/api/v1/auth/logout',
   me: '/api/v1/auth/me',
 };
+
+export const ADMIN = {
+  orders: (query) => pathWithQuery('/api/v1/admin/orders', query),
+  order: (id) => `/api/v1/admin/orders/${id}`,
+  orderStatus: (id) => `/api/v1/admin/orders/${id}/status`,
+  orderFulfill: (id) => `/api/v1/admin/orders/${id}/fulfill`,
+  orderRefund: (id) => `/api/v1/admin/orders/${id}/refund`,
+  orderCancel: (id) => `/api/v1/admin/orders/${id}/cancel`,
+  ordersBulkStatus: () => '/api/v1/admin/orders/bulk/status',
+  preorders: () => '/api/v1/admin/preorders',
+  preorderStatus: (id) => `/api/v1/admin/preorders/${id}/status`,
+  preorderCapture: (id) => `/api/v1/admin/preorders/${id}/capture-balance`,
+};
