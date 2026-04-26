@@ -4,6 +4,12 @@ export const STAFF_ROLES = ['super_admin', 'admin', 'ops', 'merchandiser', 'mark
 /** Matches `ORDER_OPS_ROLES` on admin-api — orders/pre-orders mutations. */
 export const ORDER_OPS_ROLES = ['super_admin', 'admin', 'ops'];
 
+/** Matches `MERCHANDISER_ROLES` on admin-api — catalog / inventory writes. */
+export const MERCHANDISER_ROLES = ['super_admin', 'admin', 'merchandiser'];
+
+/** Matches `RESTOCK_ROLES` on admin-api — back-in-stock request queue. */
+export const RESTOCK_ROLES = ['super_admin', 'admin', 'ops', 'merchandiser'];
+
 /** @type {{ to: string, label: string, roles: string[] }[]} */
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', roles: STAFF_ROLES },
@@ -11,8 +17,10 @@ export const NAV_ITEMS = [
   { to: '/preorders', label: 'Pre-orders', roles: ['super_admin', 'admin', 'ops'] },
   { to: '/products', label: 'Products', roles: ['super_admin', 'admin', 'merchandiser'] },
   { to: '/inventory', label: 'Inventory', roles: ['super_admin', 'admin', 'merchandiser'] },
+  { to: '/restock-requests', label: 'Restock alerts', roles: RESTOCK_ROLES },
   { to: '/categories', label: 'Categories', roles: ['super_admin', 'admin', 'merchandiser'] },
   { to: '/brands', label: 'Brands', roles: ['super_admin', 'admin', 'merchandiser'] },
+  { to: '/catalog/options', label: 'Sizes & colors', roles: ['super_admin', 'admin', 'merchandiser'] },
   { to: '/promos', label: 'Promos', roles: ['super_admin', 'admin', 'marketer'] },
   { to: '/reviews', label: 'Reviews', roles: ['super_admin', 'admin', 'marketer'] },
   { to: '/customers', label: 'Customers', roles: ['super_admin', 'admin', 'ops'] },

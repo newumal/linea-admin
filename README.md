@@ -4,6 +4,8 @@ Vite + React admin portal for Linea (ops). Consumes **`linea-admin-api`** (`/api
 
 **Phase 3 (current):** auth (email + Google GIS), layout, role-filtered sidebar, placeholder routes. See `docs/PLAN-admin-ops.md` in the Linea-Main workspace for the full roadmap.
 
+**Parked:** Orders list (`src/pages/orders/List.jsx`) loads the **first page** of `GET /api/v1/admin/orders` only; the API already supports `limit` / `offset` and returns `total`. Pagination or infinite scroll is tracked in `BACKLOG-ADMIN.md` and `docs/PLAN-admin-ops.md`.
+
 ## Dev
 
 ```bash
