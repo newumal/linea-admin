@@ -12,6 +12,8 @@ import ProductEdit from './pages/products/Edit.jsx';
 import LowStock from './pages/inventory/LowStock.jsx';
 import CategoriesPage from './pages/categories/Index.jsx';
 import BrandsPage from './pages/brands/Index.jsx';
+import CatalogOptionsPage from './pages/catalog/Options.jsx';
+import RestockRequestsPage from './pages/restock/Requests.jsx';
 import CustomersList from './pages/customers/List.jsx';
 import CustomerDetail from './pages/customers/Detail.jsx';
 import PromosList from './pages/promos/List.jsx';
@@ -43,8 +45,10 @@ export const router = createBrowserRouter([
               { path: 'products', element: <ProductsList /> },
               { path: 'products/:id', element: <ProductEdit /> },
               { path: 'inventory', element: <LowStock /> },
+              { path: 'restock-requests', element: <RestockRequestsPage /> },
               { path: 'categories', element: <CategoriesPage /> },
               { path: 'brands', element: <BrandsPage /> },
+              { path: 'catalog/options', element: <CatalogOptionsPage /> },
               { path: 'promos', element: <PromosList /> },
               { path: 'promos/redemptions', element: <PromoRedemptions /> },
               { path: 'promos/:id', element: <PromoEdit /> },
