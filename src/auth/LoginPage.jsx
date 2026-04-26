@@ -111,21 +111,22 @@ export function LoginPage() {
   }
 
   return (
-    <div className="screen" style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}>
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 440,
-          margin: 'auto',
-          padding: 40,
-        }}
-      >
-        <h1 className="admin-page-title" style={{ textAlign: 'center' }}>
-          Linea Admin
-        </h1>
-        <p className="admin-page-sub" style={{ textAlign: 'center' }}>
-          Sign in with your staff account.
+    <div className="screen admin-login">
+      <section className="admin-login-visual">
+        <div>
+          <div className="admin-sidebar-logo">LINEA</div>
+          <div className="mono admin-sidebar-sub">PREMIUM GOODS / ADMIN</div>
+        </div>
+        <h1 className="admin-login-display">Control the drop.</h1>
+        <p className="mono" style={{ position: 'relative', zIndex: 1, color: 'rgba(255,255,255,.58)' }}>
+          Catalog / Orders / Inventory / Growth
         </p>
+      </section>
+
+      <section className="admin-login-card">
+        <div className="admin-login-panel">
+          <h1 className="admin-page-title">Staff access</h1>
+          <p className="admin-page-sub">Sign in with your Linea operations account.</p>
 
         <div style={{ marginBottom: 28 }}>
           {googleClientId ? (
@@ -176,7 +177,8 @@ export function LoginPage() {
             {loading ? '…' : 'Sign in'}
           </button>
         </form>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
