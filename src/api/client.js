@@ -51,6 +51,13 @@ async function parseJsonResponse(res) {
   return data;
 }
 
+const inflight = { n: 0 };
+
+function loadingDelta(d) {
+  inflight.n = Math.max(0, inflight.n + d);
+  window.dispatchEvent(new CustomEvent('admin:loading', { detail: { n: inflight.n } }));
+}
+
 /**
  * @param {string} path
  * @param {{ method?: string, body?: unknown, auth?: boolean, headers?: Record<string, string> }} [options]
@@ -72,28 +79,33 @@ export async function apiFetch(path, options = {}) {
     });
   };
 
-  let token = auth ? getStoredTokens().accessToken : null;
-  let res = await run(token);
+  loadingDelta(+1);
+  try {
+    let token = auth ? getStoredTokens().accessToken : null;
+    let res = await run(token);
 
-  if (res.status === 401 && auth) {
-    const { refreshToken } = getStoredTokens();
-    if (refreshToken) {
-      const r2 = await fetch(apiUrl('/api/v1/auth/refresh'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-      const text = await r2.text();
-      const data2 = text ? JSON.parse(text) : {};
-      if (r2.ok && data2.accessToken) {
-        setStoredTokens({
-          accessToken: data2.accessToken,
-          refreshToken: data2.refreshToken || refreshToken,
+    if (res.status === 401 && auth) {
+      const { refreshToken } = getStoredTokens();
+      if (refreshToken) {
+        const r2 = await fetch(apiUrl('/api/v1/auth/refresh'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
         });
-        res = await run(data2.accessToken);
+        const text = await r2.text();
+        const data2 = text ? JSON.parse(text) : {};
+        if (r2.ok && data2.accessToken) {
+          setStoredTokens({
+            accessToken: data2.accessToken,
+            refreshToken: data2.refreshToken || refreshToken,
+          });
+          res = await run(data2.accessToken);
+        }
       }
     }
-  }
 
-  return parseJsonResponse(res);
+    return parseJsonResponse(res);
+  } finally {
+    loadingDelta(-1);
+  }
 }

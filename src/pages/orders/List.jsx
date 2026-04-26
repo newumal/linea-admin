@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/client.js';
 import { ADMIN } from '../../api/endpoints.js';
 import { useRole } from '../../auth/useRole.js';
 import { ORDER_OPS_ROLES } from '../../auth/navConfig.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.jsx';
-import { PaginationControls, SortButton, TableCount } from '../../components/TableTools.jsx';
+import { PaginationControls, SortButton, TableActions, TableCount } from '../../components/TableTools.jsx';
 import { sortRows } from '../../components/tableUtils.js';
+import { TableSkeleton } from '../../components/TableSkeleton.jsx';
+import { CopyButton } from '../../components/CopyButton.jsx';
+import { downloadCsv } from '../../lib/csv.js';
+import { useTableKeyboardNav } from '../../hooks/useTableKeyboardNav.js';
+import { ColumnControls, useColumnPrefs } from '../../components/ColumnControls.jsx';
 
 const LS_PRESETS = 'linea-admin-order-filter-presets';
 
@@ -65,6 +70,7 @@ function savePresets(list) {
 export default function OrdersList() {
   const { hasRole } = useRole();
   const canWrite = hasRole(ORDER_OPS_ROLES);
+  const navigate = useNavigate();
 
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -85,6 +91,7 @@ export default function OrdersList() {
   const [editingPresetName, setEditingPresetName] = useState('');
   const [userPresets, setUserPresets] = useState(() => loadPresets());
   const [sort, setSort] = useState({ key: 'placedAt', dir: 'desc' });
+  const [colsOpen, setColsOpen] = useState(false);
 
   const query = useMemo(() => {
     const q = {};
@@ -232,6 +239,49 @@ export default function OrdersList() {
     2,
   );
   const visibleItems = useMemo(() => sortRows(items, sort), [items, sort]);
+  const csvColumns = useMemo(
+    () => [
+      { key: 'orderCode', label: 'Order Code' },
+      { key: 'email', label: 'Email' },
+      { key: 'placedAt', label: 'Placed At', value: (o) => (o.placedAt ? new Date(o.placedAt).toISOString() : '') },
+      { key: 'totalGrand', label: 'Total', value: (o) => Number(o.totalGrand ?? 0).toFixed(2) },
+      { key: 'status', label: 'Status' },
+      { key: 'id', label: 'Order ID' },
+    ],
+    [],
+  );
+
+  const tableColumns = useMemo(() => {
+    const cols = [
+      canWrite
+        ? { key: '_sel', label: 'Select' }
+        : null,
+      { key: 'orderCode', label: 'Code' },
+      { key: 'email', label: 'Email' },
+      { key: 'placedAt', label: 'Placed' },
+      { key: 'totalGrand', label: 'Total' },
+      { key: 'status', label: 'Status' },
+    ].filter(Boolean);
+    return cols;
+  }, [canWrite]);
+
+  const colPrefs = useColumnPrefs({
+    storageKey: 'linea-admin:orders:columns:v1',
+    columns: tableColumns,
+  });
+
+  const { activeId } = useTableKeyboardNav({
+    enabled: true,
+    rows: visibleItems,
+    getRowId: (o) => o.id,
+    onOpenRow: (id) => navigate(`/orders/${id}`),
+    onToggleRow: canWrite ? (id) => toggleSel(id) : null,
+    captureWhen: (e) => {
+      const t = e.target;
+      const tag = (t?.tagName || '').toLowerCase();
+      return tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !t?.isContentEditable;
+    },
+  });
 
   return (
     <div>
@@ -359,6 +409,26 @@ export default function OrdersList() {
 
       {err ? <p className="admin-err">{err}</p> : null}
 
+      <TableActions>
+        <button
+          type="button"
+          className="btn ghost sm"
+          disabled={loading || visibleItems.length === 0}
+          onClick={() =>
+            downloadCsv({
+              filename: `orders-${new Date().toISOString().slice(0, 10)}.csv`,
+              columns: csvColumns,
+              rows: visibleItems,
+            })
+          }
+        >
+          Export CSV
+        </button>
+        <button type="button" className="btn ghost sm" onClick={() => setColsOpen(true)}>
+          Columns
+        </button>
+      </TableActions>
+
       {canWrite && selected.size > 0 ? (
         <div style={{ marginBottom: 12 }}>
           <span style={{ marginRight: 12, fontSize: 13 }}>{selected.size} selected</span>
@@ -393,70 +463,117 @@ export default function OrdersList() {
         <table className="admin-table">
           <thead>
             <tr>
-              {canWrite ? (
-                <th style={{ width: 36 }}>
-                  <input
-                    type="checkbox"
-                    checked={items.length > 0 && selected.size === items.length}
-                    onChange={toggleAll}
-                  />
-                </th>
-              ) : null}
-              <th><SortButton label="Code" column="orderCode" sort={sort} onSort={setSort} /></th>
-              <th><SortButton label="Email" column="email" sort={sort} onSort={setSort} /></th>
-              <th><SortButton label="Placed" column="placedAt" sort={sort} onSort={setSort} /></th>
-              <th><SortButton label="Total" column="totalGrand" sort={sort} onSort={setSort} /></th>
-              <th><SortButton label="Status" column="status" sort={sort} onSort={setSort} /></th>
+              {colPrefs.visibleColumns.map((c) => {
+                if (c.key === '_sel') {
+                  return (
+                    <th key={c.key} style={{ width: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={items.length > 0 && selected.size === items.length}
+                        onChange={toggleAll}
+                      />
+                    </th>
+                  );
+                }
+                if (c.key === 'orderCode') return <th key={c.key}><SortButton label="Code" column="orderCode" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'email') return <th key={c.key}><SortButton label="Email" column="email" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'placedAt') return <th key={c.key}><SortButton label="Placed" column="placedAt" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'totalGrand') return <th key={c.key}><SortButton label="Total" column="totalGrand" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'status') return <th key={c.key}><SortButton label="Status" column="status" sort={sort} onSort={setSort} /></th>;
+                return <th key={c.key}>{c.label}</th>;
+              })}
             </tr>
           </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={canWrite ? 6 : 5}>Loading…</td>
-              </tr>
-            ) : null}
-            {!loading && items.length === 0 ? (
-              <tr>
-                <td colSpan={canWrite ? 6 : 5}>No orders match.</td>
-              </tr>
-            ) : null}
-            {visibleItems.map((o) => (
-              <tr key={o.id}>
-                {canWrite ? (
-                  <td>
-                    <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSel(o.id)} />
-                  </td>
-                ) : null}
-                <td>
-                  <Link to={`/orders/${o.id}`} className="mono">{o.orderCode}</Link>
-                </td>
-                <td>{o.email}</td>
-                <td className="mono">{o.placedAt ? new Date(o.placedAt).toLocaleString() : '—'}</td>
-                <td>${Number(o.totalGrand).toFixed(2)}</td>
-                <td>
-                  {canWrite ? (
-                    <select
-                      className="input"
-                      style={{ padding: '6px 8px', fontSize: 12 }}
-                      value={o.status}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        patchStatus(o.id, v).catch((er) => setErr(er.message));
-                      }}
-                    >
-                      {ORDER_STATUSES.filter(Boolean).map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="chip">{o.status}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
+          {loading ? (
+            <TableSkeleton rows={Math.max(6, Math.min(10, filters.limit))} cols={colPrefs.visibleColumns.length} />
+          ) : (
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={colPrefs.visibleColumns.length}>No orders match.</td>
+                </tr>
+              ) : null}
+              {visibleItems.map((o) => (
+                <tr
+                  key={o.id}
+                  className={[
+                    selected.has(o.id) ? 'admin-row-selected' : '',
+                    o.id === activeId ? 'admin-row-active' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {colPrefs.visibleColumns.map((c) => {
+                    if (c.key === '_sel') {
+                      return (
+                        <td key={c.key}>
+                          <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSel(o.id)} />
+                        </td>
+                      );
+                    }
+                    if (c.key === 'orderCode') {
+                      return (
+                        <td key={c.key}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Link to={`/orders/${o.id}`} className="mono">{o.orderCode}</Link>
+                      <CopyButton value={o.orderCode} label="Copy order code" copiedLabel="Copied order code" />
+                          </div>
+                        </td>
+                      );
+                    }
+                    if (c.key === 'email') {
+                      return (
+                        <td key={c.key}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span>{o.email}</span>
+                            <CopyButton value={o.email} label="Copy email" copiedLabel="Copied email" />
+                          </div>
+                        </td>
+                      );
+                    }
+                    if (c.key === 'placedAt') return <td key={c.key} className="mono">{o.placedAt ? new Date(o.placedAt).toLocaleString() : '—'}</td>;
+                    if (c.key === 'totalGrand') return <td key={c.key}>${Number(o.totalGrand).toFixed(2)}</td>;
+                    if (c.key === 'status') {
+                      return (
+                        <td key={c.key}>
+                          {canWrite ? (
+                            <select
+                              className="input"
+                              style={{ padding: '6px 8px', fontSize: 12 }}
+                              value={o.status}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                patchStatus(o.id, v).catch((er) => setErr(er.message));
+                              }}
+                            >
+                              {ORDER_STATUSES.filter(Boolean).map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="chip">{o.status}</span>
+                          )}
+                        </td>
+                      );
+                    }
+                    return <td key={c.key}>{o?.[c.key] ?? '—'}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          )}
         </table>
       </div>
+
+      <ColumnControls
+        open={colsOpen}
+        onClose={() => setColsOpen(false)}
+        columns={colPrefs.orderedColumns}
+        columnState={colPrefs.columnState}
+        onToggle={colPrefs.toggle}
+        onMove={colPrefs.move}
+        onReset={colPrefs.reset}
+      />
 
       <TableCount shown={visibleItems.length} total={total} offset={filters.offset} label="orders" />
       <PaginationControls

@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/client.js';
 import { ADMIN } from '../../api/endpoints.js';
-import { PaginationControls, SortButton, TableCount } from '../../components/TableTools.jsx';
+import { PaginationControls, SortButton, TableActions, TableCount } from '../../components/TableTools.jsx';
 import { sortRows } from '../../components/tableUtils.js';
+import { TableSkeleton } from '../../components/TableSkeleton.jsx';
+import { downloadCsv } from '../../lib/csv.js';
+import { useTableKeyboardNav } from '../../hooks/useTableKeyboardNav.js';
+import { ColumnControls, useColumnPrefs } from '../../components/ColumnControls.jsx';
 
 export default function ProductsList() {
+  const navigate = useNavigate();
+  const [colsOpen, setColsOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
@@ -73,6 +79,51 @@ export default function ProductsList() {
     low: items.filter((p) => Number(p.totalStock ?? 0) > 0 && Number(p.lowStockVariants ?? 0) > 0).length,
     variants: items.reduce((sum, p) => sum + Number(p.variantCount ?? 0), 0),
   }), [items]);
+  const csvColumns = useMemo(
+    () => [
+      { key: 'name', label: 'Name' },
+      { key: 'slug', label: 'Slug' },
+      { key: 'brandName', label: 'Brand' },
+      { key: 'categoryName', label: 'Category' },
+      { key: 'basePrice', label: 'Price', value: (p) => (p.basePrice != null ? Number(p.basePrice).toFixed(2) : '') },
+      { key: 'totalStock', label: 'Total Stock', value: (p) => String(p.totalStock ?? '') },
+      { key: 'variantCount', label: 'Variants', value: (p) => String(p.variantCount ?? '') },
+      { key: 'isActive', label: 'Active', value: (p) => (p.isActive ? 'true' : 'false') },
+      { key: 'id', label: 'Product ID' },
+    ],
+    [],
+  );
+
+  const { activeId } = useTableKeyboardNav({
+    enabled: true,
+    rows: visibleItems,
+    getRowId: (p) => p.id,
+    onOpenRow: (id) => navigate(`/products/${id}`),
+    onToggleRow: null,
+    captureWhen: (e) => {
+      const t = e.target;
+      const tag = (t?.tagName || '').toLowerCase();
+      return tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !t?.isContentEditable;
+    },
+  });
+
+  const tableColumns = useMemo(
+    () => [
+      { key: 'name', label: 'Name' },
+      { key: 'slug', label: 'Slug' },
+      { key: 'brandName', label: 'Brand' },
+      { key: 'categoryName', label: 'Category' },
+      { key: 'basePrice', label: 'Price' },
+      { key: 'totalStock', label: 'Stock' },
+      { key: 'isActive', label: 'Active' },
+    ],
+    [],
+  );
+
+  const colPrefs = useColumnPrefs({
+    storageKey: 'linea-admin:products:columns:v1',
+    columns: tableColumns,
+  });
 
   function stockLabel(p) {
     if (Number(p.totalStock ?? 0) === 0) return 'Out';
@@ -167,6 +218,26 @@ export default function ProductsList() {
       </div>
 
       {err ? <p className="admin-err">{err}</p> : null}
+
+      <TableActions>
+        <button
+          type="button"
+          className="btn ghost sm"
+          disabled={loading || visibleItems.length === 0}
+          onClick={() =>
+            downloadCsv({
+              filename: `products-${new Date().toISOString().slice(0, 10)}.csv`,
+              columns: csvColumns,
+              rows: visibleItems,
+            })
+          }
+        >
+          Export CSV
+        </button>
+        <button type="button" className="btn ghost sm" onClick={() => setColsOpen(true)}>
+          Columns
+        </button>
+      </TableActions>
       {!loading ? (
         <div className="admin-stat-grid">
           <div className="admin-stat-card">
@@ -184,52 +255,71 @@ export default function ProductsList() {
         </div>
       ) : null}
 
-      {loading ? (
-        <p className="admin-muted">Loading…</p>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th><SortButton label="Name" column="name" sort={sort} onSort={setSort} /></th>
-                <th><SortButton label="Slug" column="slug" sort={sort} onSort={setSort} /></th>
-                <th><SortButton label="Brand" column="brandName" sort={sort} onSort={setSort} /></th>
-                <th><SortButton label="Category" column="categoryName" sort={sort} onSort={setSort} /></th>
-                <th><SortButton label="Price" column="basePrice" sort={sort} onSort={setSort} /></th>
-                <th><SortButton label="Stock" column="totalStock" sort={sort} onSort={setSort} /></th>
-                <th><SortButton label="Active" column="isActive" sort={sort} onSort={setSort} /></th>
-              </tr>
-            </thead>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              {colPrefs.visibleColumns.map((c) => {
+                if (c.key === 'name') return <th key={c.key}><SortButton label="Name" column="name" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'slug') return <th key={c.key}><SortButton label="Slug" column="slug" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'brandName') return <th key={c.key}><SortButton label="Brand" column="brandName" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'categoryName') return <th key={c.key}><SortButton label="Category" column="categoryName" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'basePrice') return <th key={c.key}><SortButton label="Price" column="basePrice" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'totalStock') return <th key={c.key}><SortButton label="Stock" column="totalStock" sort={sort} onSort={setSort} /></th>;
+                if (c.key === 'isActive') return <th key={c.key}><SortButton label="Active" column="isActive" sort={sort} onSort={setSort} /></th>;
+                return <th key={c.key}>{c.label}</th>;
+              })}
+            </tr>
+          </thead>
+          {loading ? (
+            <TableSkeleton rows={Math.max(6, Math.min(10, filters.limit))} cols={colPrefs.visibleColumns.length} />
+          ) : (
             <tbody>
               {visibleItems.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <Link to={`/products/${p.id}`} style={{ fontWeight: 600 }}>
-                      {p.name}
-                    </Link>
-                  </td>
-                  <td className="mono" style={{ fontSize: 13 }}>
-                    {p.slug}
-                  </td>
-                  <td>{p.brandName}</td>
-                  <td>{p.categoryName}</td>
-                  <td>
-                    {p.basePrice != null ? `$${Number(p.basePrice).toFixed(2)}` : '—'}
-                  </td>
-                  <td>
-                    <Link to={`/products/${p.id}`} className={`chip ${Number(p.totalStock ?? 0) === 0 || Number(p.lowStockVariants ?? 0) > 0 ? 'active' : ''}`}>
-                      {stockLabel(p)} · {p.totalStock ?? 0} / {p.variantCount ?? 0}
-                    </Link>
-                  </td>
-                  <td>{p.isActive ? 'Yes' : 'No'}</td>
+                <tr key={p.id} className={p.id === activeId ? 'admin-row-active' : undefined}>
+                  {colPrefs.visibleColumns.map((c) => {
+                    if (c.key === 'name') {
+                      return (
+                        <td key={c.key}>
+                          <Link to={`/products/${p.id}`} style={{ fontWeight: 600 }}>
+                            {p.name}
+                          </Link>
+                        </td>
+                      );
+                    }
+                    if (c.key === 'slug') return <td key={c.key} className="mono" style={{ fontSize: 13 }}>{p.slug}</td>;
+                    if (c.key === 'brandName') return <td key={c.key}>{p.brandName}</td>;
+                    if (c.key === 'categoryName') return <td key={c.key}>{p.categoryName}</td>;
+                    if (c.key === 'basePrice') return <td key={c.key}>{p.basePrice != null ? `$${Number(p.basePrice).toFixed(2)}` : '—'}</td>;
+                    if (c.key === 'totalStock') {
+                      return (
+                        <td key={c.key}>
+                          <Link to={`/products/${p.id}`} className={`chip ${Number(p.totalStock ?? 0) === 0 || Number(p.lowStockVariants ?? 0) > 0 ? 'active' : ''}`}>
+                            {stockLabel(p)} · {p.totalStock ?? 0} / {p.variantCount ?? 0}
+                          </Link>
+                        </td>
+                      );
+                    }
+                    if (c.key === 'isActive') return <td key={c.key}>{p.isActive ? 'Yes' : 'No'}</td>;
+                    return <td key={c.key}>{p?.[c.key] ?? '—'}</td>;
+                  })}
                 </tr>
               ))}
             </tbody>
-          </table>
-          {visibleItems.length === 0 ? <p className="admin-muted" style={{ padding: 16 }}>No products match.</p> : null}
-          <TableCount shown={visibleItems.length} total={total} offset={filters.offset} label="products" />
-        </div>
-      )}
+          )}
+        </table>
+        {!loading && visibleItems.length === 0 ? <p className="admin-muted" style={{ padding: 16 }}>No products match.</p> : null}
+        {!loading ? <TableCount shown={visibleItems.length} total={total} offset={filters.offset} label="products" /> : null}
+      </div>
+      <ColumnControls
+        open={colsOpen}
+        onClose={() => setColsOpen(false)}
+        columns={colPrefs.orderedColumns}
+        columnState={colPrefs.columnState}
+        onToggle={colPrefs.toggle}
+        onMove={colPrefs.move}
+        onReset={colPrefs.reset}
+      />
       <PaginationControls
         limit={filters.limit}
         offset={filters.offset}

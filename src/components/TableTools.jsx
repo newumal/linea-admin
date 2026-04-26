@@ -57,6 +57,10 @@ export function PaginationControls({ limit, offset, total, onPage, onLimit }) {
   );
 }
 
+export function TableActions({ children }) {
+  return <div className="admin-table-actions">{children}</div>;
+}
+
 export function InfoPanel({ title, children }) {
   return (
     <div className="admin-info-panel">
