@@ -24,6 +24,7 @@ import CmsSlotEditor from './pages/cms/SlotEditor.jsx';
 import AnalyticsIndex from './pages/analytics/index.jsx';
 import AuditLog from './pages/audit/Log.jsx';
 import SettingsUsers from './pages/settings/Users.jsx';
+import SettingsIntegrations from './pages/settings/Integrations.jsx';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
               { path: 'analytics', element: <AnalyticsIndex /> },
               { path: 'audit', element: <AuditLog /> },
               { path: 'settings/users', element: <SettingsUsers /> },
+              { path: 'settings/integrations', element: <SettingsIntegrations /> },
             ],
           },
         ],

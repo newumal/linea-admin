@@ -51,4 +51,7 @@ export const ADMIN = {
   restockSummary: () => '/api/v1/admin/restock/summary',
   restockRequests: (query) => pathWithQuery('/api/v1/admin/restock', query),
   restockRequest: (id) => `/api/v1/admin/restock/${id}`,
+
+  integrationTokens: () => '/api/v1/admin/integration-tokens',
+  integrationToken: (id) => `/api/v1/admin/integration-tokens/${id}`,
 };

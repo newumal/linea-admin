@@ -112,6 +112,12 @@ const NAV_ICONS = {
       <path d="M9 7h6M9 11h6M9 15h4" />
     </>
   ),
+  '/settings/integrations': (
+    <>
+      <path d="M14.5 3a4.5 4.5 0 0 0-4.3 5.8L3 16v3h3v-2h2v-2h2l1.2-1.2A4.5 4.5 0 1 0 14.5 3Z" />
+      <circle cx="16" cy="8" r="1.1" />
+    </>
+  ),
   '/settings/users': (
     <>
       <path d="M16 21v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1" />
