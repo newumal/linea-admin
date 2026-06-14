@@ -79,8 +79,14 @@ export default function ProductEdit() {
   const [uploadFile, setUploadFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [addMode, setAddMode] = useState('upload'); // 'upload' | 'url'
   const previewUrl = useMemo(() => (uploadFile ? URL.createObjectURL(uploadFile) : null), [uploadFile]);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  // New images append to the end — avoids duplicate positions.
+  const nextPosition = useMemo(
+    () => (images.length ? Math.max(...images.map((i) => Number(i.position) || 0)) + 1 : 0),
+    [images],
+  );
   const [newVar, setNewVar] = useState({ sku: '', size: '', colorName: '', colorHex: '#000000', priceDelta: '0', stock: '0' });
   const [editingVariantId, setEditingVariantId] = useState('');
   const [variantEdit, setVariantEdit] = useState({
@@ -352,7 +358,7 @@ export default function ProductEdit() {
       body: {
         url: newImage.url.trim(),
         alt: newImage.alt.trim() || null,
-        position: parseInt(newImage.position, 10) || 0,
+        position: nextPosition,
         isPrimary: !!newImage.isPrimary,
       },
       auth: true,
@@ -372,7 +378,7 @@ export default function ProductEdit() {
       const form = new FormData();
       form.append('file', uploadFile);
       if (newImage.alt.trim()) form.append('alt', newImage.alt.trim());
-      form.append('position', String(parseInt(newImage.position, 10) || 0));
+      form.append('position', String(nextPosition));
       form.append('isPrimary', String(!!newImage.isPrimary));
       await apiFetch(ADMIN.productImageUpload(productId), { method: 'POST', body: form, auth: true });
       setUploadFile(null);
@@ -927,8 +933,28 @@ export default function ProductEdit() {
               {canWrite ? (
                 <div style={{ padding: 16, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)' }}>
                   <h3 className="caps" style={{ marginBottom: 12 }}>Add image</h3>
-                  <div style={{ marginBottom: 16 }}>
-                    <label className="field-label">Upload a file</label>
+
+                  {/* Mode toggle — one path active at a time */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                    {[['upload', 'Upload file'], ['url', 'Paste URL']].map(([m, label]) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className="btn sm"
+                        style={addMode === m ? {} : { opacity: 0.5 }}
+                        onClick={() => {
+                          setAddMode(m);
+                          setErr('');
+                          if (m === 'upload') setNewImage((x) => ({ ...x, url: '' }));
+                          else setUploadFile(null);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {addMode === 'upload' ? (
                     <div
                       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
@@ -970,42 +996,50 @@ export default function ProductEdit() {
                         <div className="admin-muted" style={{ marginTop: 6, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {uploadFile
                             ? `${uploadFile.name} · ${Math.round(uploadFile.size / 1024)} KB`
-                            : 'or drag & drop here · JPEG/PNG, ≤5MB · uses Alt/Position/Primary below'}
+                            : 'or drag & drop here · JPEG / PNG, ≤5MB'}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="btn sm"
-                        style={{ flexShrink: 0 }}
-                        disabled={!uploadFile || uploading}
-                        onClick={() => void uploadImageFile().catch((e) => setErr(e.message || 'Upload failed'))}
-                      >
-                        {uploading ? 'Uploading…' : 'Upload'}
-                      </button>
                     </div>
-                  </div>
-                  <div className="admin-filters-grid">
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <label className="field-label">Image URL (or paste a URL)</label>
-                      <input className="input mono" value={newImage.url} onChange={(e) => setNewImage((x) => ({ ...x, url: e.target.value }))} />
-                    </div>
+                  ) : (
                     <div>
-                      <label className="field-label">Alt</label>
+                      <label className="field-label">Image URL</label>
+                      <input
+                        className="input mono"
+                        placeholder="https://…  (must be a public, direct JPEG/PNG)"
+                        value={newImage.url}
+                        onChange={(e) => setNewImage((x) => ({ ...x, url: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  <div className="admin-filters-grid" style={{ marginTop: 14 }}>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label className="field-label">Alt text</label>
                       <input className="input" value={newImage.alt} onChange={(e) => setNewImage((x) => ({ ...x, alt: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="field-label">Position</label>
-                      <input className="input" type="number" value={newImage.position} onChange={(e) => setNewImage((x) => ({ ...x, position: e.target.value }))} />
-                    </div>
-                    <div>
-                      <label className="field-label">
-                        <input type="checkbox" checked={newImage.isPrimary} onChange={(e) => setNewImage((x) => ({ ...x, isPrimary: e.target.checked }))} />{' '}
-                        Primary
+                      <label className="field-label">&nbsp;</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input type="checkbox" checked={newImage.isPrimary} onChange={(e) => setNewImage((x) => ({ ...x, isPrimary: e.target.checked }))} />
+                        Set as primary
                       </label>
                     </div>
                   </div>
-                  <button type="button" className="btn sm" style={{ marginTop: 12 }} onClick={() => void addImageRow().catch((e) => setErr(e.message || 'Failed'))}>
-                    Add image
+                  <p className="admin-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                    Added at position {nextPosition}. {newImage.isPrimary ? 'Will become the primary image.' : ''}
+                  </p>
+
+                  <button
+                    type="button"
+                    className="btn sm"
+                    style={{ marginTop: 12 }}
+                    disabled={addMode === 'upload' ? !uploadFile || uploading : !newImage.url.trim()}
+                    onClick={() => {
+                      if (addMode === 'upload') void uploadImageFile().catch((e) => setErr(e.message || 'Upload failed'));
+                      else void addImageRow().catch((e) => setErr(e.message || 'Failed'));
+                    }}
+                  >
+                    {addMode === 'upload' ? (uploading ? 'Uploading…' : 'Upload image') : 'Add image'}
                   </button>
                 </div>
               ) : null}
