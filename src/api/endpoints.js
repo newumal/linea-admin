@@ -30,6 +30,7 @@ export const ADMIN = {
   productVariants: (productId) => `/api/v1/admin/products/${productId}/variants`,
   productVariant: (variantId) => `/api/v1/admin/products/variants/${variantId}`,
   productImages: (productId) => `/api/v1/admin/products/${productId}/images`,
+  productImageUpload: (productId) => `/api/v1/admin/products/${productId}/images/upload`,
   productImage: (imageId) => `/api/v1/admin/products/images/${imageId}`,
 
   inventoryLowStock: (query) => pathWithQuery('/api/v1/admin/inventory/low-stock', query),

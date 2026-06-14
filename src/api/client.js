@@ -66,11 +66,13 @@ export async function apiFetch(path, options = {}) {
   const { method = 'GET', body, auth = false, headers: extra = {} } = options;
 
   const run = (token) => {
-    const headers = { 'Content-Type': 'application/json', ...extra };
+    const isForm = body instanceof FormData;
+    // For multipart, let the browser set Content-Type (with boundary).
+    const headers = { ...(isForm ? {} : { 'Content-Type': 'application/json' }), ...extra };
     if (token) headers.Authorization = `Bearer ${token}`;
     let serialized;
     if (body !== undefined && body !== null) {
-      serialized = JSON.stringify(body);
+      serialized = isForm ? body : JSON.stringify(body);
     }
     return fetch(apiUrl(path), {
       method,

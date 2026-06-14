@@ -8,6 +8,16 @@ import { IconButton } from '../../components/IconButton.jsx';
 import { VariantColorSelect, VariantSizeSelect } from '../../components/VariantOptionPickers.jsx';
 
 const AUDIENCES = ['Women', 'Men', 'Unisex', 'Kids', 'Family'];
+
+// Short, readable label for an image URL (filename, or host for external links).
+function imageUrlLabel(u) {
+  try {
+    const p = new URL(u);
+    return decodeURIComponent(p.pathname.split('/').filter(Boolean).pop() || p.hostname);
+  } catch {
+    return u;
+  }
+}
 const TABS = [
   { id: 'details', label: 'Details' },
   { id: 'variants', label: 'Variants' },
@@ -66,6 +76,17 @@ export default function ProductEdit() {
   const [pendingImages, setPendingImages] = useState([{ url: '', alt: '', position: '0', isPrimary: false }]);
 
   const [newImage, setNewImage] = useState({ url: '', alt: '', position: '0', isPrimary: false });
+  const [uploadFile, setUploadFile] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [addMode, setAddMode] = useState('upload'); // 'upload' | 'url'
+  const previewUrl = useMemo(() => (uploadFile ? URL.createObjectURL(uploadFile) : null), [uploadFile]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  // New images append to the end — avoids duplicate positions.
+  const nextPosition = useMemo(
+    () => (images.length ? Math.max(...images.map((i) => Number(i.position) || 0)) + 1 : 0),
+    [images],
+  );
   const [newVar, setNewVar] = useState({ sku: '', size: '', colorName: '', colorHex: '#000000', priceDelta: '0', stock: '0' });
   const [editingVariantId, setEditingVariantId] = useState('');
   const [variantEdit, setVariantEdit] = useState({
@@ -337,13 +358,35 @@ export default function ProductEdit() {
       body: {
         url: newImage.url.trim(),
         alt: newImage.alt.trim() || null,
-        position: parseInt(newImage.position, 10) || 0,
+        position: nextPosition,
         isPrimary: !!newImage.isPrimary,
       },
       auth: true,
     });
     setNewImage({ url: '', alt: '', position: '0', isPrimary: false });
     await loadProduct();
+  }
+
+  async function uploadImageFile() {
+    if (!productId || !uploadFile) {
+      setErr('Choose a JPEG or PNG file first');
+      return;
+    }
+    setErr('');
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', uploadFile);
+      if (newImage.alt.trim()) form.append('alt', newImage.alt.trim());
+      form.append('position', String(nextPosition));
+      form.append('isPrimary', String(!!newImage.isPrimary));
+      await apiFetch(ADMIN.productImageUpload(productId), { method: 'POST', body: form, auth: true });
+      setUploadFile(null);
+      setNewImage({ url: '', alt: '', position: '0', isPrimary: false });
+      await loadProduct();
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function deleteImage(imageId) {
@@ -843,8 +886,30 @@ export default function ProductEdit() {
                             <td style={{ width: 72 }}>
                               <img src={im.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 2 }} />
                             </td>
-                            <td className="mono" style={{ fontSize: 12, maxWidth: 280, wordBreak: 'break-all' }}>
-                              {im.url}
+                            <td style={{ maxWidth: 280 }}>
+                              <span
+                                title={im.stored ? 'Uploaded to object storage' : 'External URL'}
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  padding: '1px 6px',
+                                  borderRadius: 999,
+                                  background: im.stored ? 'rgba(52,168,83,0.12)' : 'rgba(120,120,120,0.12)',
+                                  color: im.stored ? '#2e7d4f' : 'var(--muted, #777)',
+                                }}
+                              >
+                                {im.stored ? 'Uploaded' : 'URL'}
+                              </span>
+                              <a
+                                href={im.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={im.url}
+                                className="mono"
+                                style={{ fontSize: 12, marginLeft: 8, display: 'inline-block', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                              >
+                                {imageUrlLabel(im.url)}
+                              </a>
                             </td>
                             <td>{im.alt || '—'}</td>
                             <td>{im.position}</td>
@@ -868,28 +933,113 @@ export default function ProductEdit() {
               {canWrite ? (
                 <div style={{ padding: 16, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)' }}>
                   <h3 className="caps" style={{ marginBottom: 12 }}>Add image</h3>
-                  <div className="admin-filters-grid">
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <label className="field-label">Image URL</label>
-                      <input className="input mono" value={newImage.url} onChange={(e) => setNewImage((x) => ({ ...x, url: e.target.value }))} />
+
+                  {/* Mode toggle — one path active at a time */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                    {[['upload', 'Upload file'], ['url', 'Paste URL']].map(([m, label]) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className="btn sm"
+                        style={addMode === m ? {} : { opacity: 0.5 }}
+                        onClick={() => {
+                          setAddMode(m);
+                          setErr('');
+                          if (m === 'upload') setNewImage((x) => ({ ...x, url: '' }));
+                          else setUploadFile(null);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {addMode === 'upload' ? (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOver(false);
+                        const f = e.dataTransfer.files?.[0];
+                        if (f && /^image\/(jpeg|png)$/.test(f.type)) setUploadFile(f);
+                        else if (f) setErr('Only JPEG or PNG files are supported');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: 16,
+                        border: `1.5px dashed ${dragOver ? 'var(--accent, #7c8cff)' : 'var(--line)'}`,
+                        borderRadius: 'var(--radius-lg)',
+                        background: dragOver ? 'rgba(124,140,255,0.06)' : 'transparent',
+                        transition: 'border-color .15s, background .15s',
+                      }}
+                    >
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 72, height: 72, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', color: 'var(--muted, #888)', fontSize: 11 }}>
+                          IMG
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <label className="btn sm" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                          Choose file
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            style={{ display: 'none' }}
+                            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                          />
+                        </label>
+                        <div className="admin-muted" style={{ marginTop: 6, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {uploadFile
+                            ? `${uploadFile.name} · ${Math.round(uploadFile.size / 1024)} KB`
+                            : 'or drag & drop here · JPEG / PNG, ≤5MB'}
+                        </div>
+                      </div>
                     </div>
+                  ) : (
                     <div>
-                      <label className="field-label">Alt</label>
+                      <label className="field-label">Image URL</label>
+                      <input
+                        className="input mono"
+                        placeholder="https://…  (must be a public, direct JPEG/PNG)"
+                        value={newImage.url}
+                        onChange={(e) => setNewImage((x) => ({ ...x, url: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  <div className="admin-filters-grid" style={{ marginTop: 14 }}>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label className="field-label">Alt text</label>
                       <input className="input" value={newImage.alt} onChange={(e) => setNewImage((x) => ({ ...x, alt: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="field-label">Position</label>
-                      <input className="input" type="number" value={newImage.position} onChange={(e) => setNewImage((x) => ({ ...x, position: e.target.value }))} />
-                    </div>
-                    <div>
-                      <label className="field-label">
-                        <input type="checkbox" checked={newImage.isPrimary} onChange={(e) => setNewImage((x) => ({ ...x, isPrimary: e.target.checked }))} />{' '}
-                        Primary
+                      <label className="field-label">&nbsp;</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input type="checkbox" checked={newImage.isPrimary} onChange={(e) => setNewImage((x) => ({ ...x, isPrimary: e.target.checked }))} />
+                        Set as primary
                       </label>
                     </div>
                   </div>
-                  <button type="button" className="btn sm" style={{ marginTop: 12 }} onClick={() => void addImageRow().catch((e) => setErr(e.message || 'Failed'))}>
-                    Add image
+                  <p className="admin-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                    Added at position {nextPosition}. {newImage.isPrimary ? 'Will become the primary image.' : ''}
+                  </p>
+
+                  <button
+                    type="button"
+                    className="btn sm"
+                    style={{ marginTop: 12 }}
+                    disabled={addMode === 'upload' ? !uploadFile || uploading : !newImage.url.trim()}
+                    onClick={() => {
+                      if (addMode === 'upload') void uploadImageFile().catch((e) => setErr(e.message || 'Upload failed'));
+                      else void addImageRow().catch((e) => setErr(e.message || 'Failed'));
+                    }}
+                  >
+                    {addMode === 'upload' ? (uploading ? 'Uploading…' : 'Upload image') : 'Add image'}
                   </button>
                 </div>
               ) : null}
