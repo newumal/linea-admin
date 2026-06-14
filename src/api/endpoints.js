@@ -85,4 +85,10 @@ export const ADMIN = {
   dashboardOperations: (query) => pathWithQuery('/api/v1/admin/dashboard/operations', query),
   dashboardCatalog: (query) => pathWithQuery('/api/v1/admin/dashboard/catalog', query),
   dashboardExperience: (query) => pathWithQuery('/api/v1/admin/dashboard/experience', query),
+
+  auditLog: (query) => pathWithQuery('/api/v1/admin/audit', query),
+  auditEntry: (id) => `/api/v1/admin/audit/${id}`,
+
+  adminUsers: (query) => pathWithQuery('/api/v1/admin/users', query),
+  adminUser: (id) => `/api/v1/admin/users/${id}`,
 };
