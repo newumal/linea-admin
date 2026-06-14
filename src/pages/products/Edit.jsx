@@ -66,6 +66,7 @@ export default function ProductEdit() {
   const [pendingImages, setPendingImages] = useState([{ url: '', alt: '', position: '0', isPrimary: false }]);
 
   const [newImage, setNewImage] = useState({ url: '', alt: '', position: '0', isPrimary: false });
+  const [uploadFile, setUploadFile] = useState(null);
   const [newVar, setNewVar] = useState({ sku: '', size: '', colorName: '', colorHex: '#000000', priceDelta: '0', stock: '0' });
   const [editingVariantId, setEditingVariantId] = useState('');
   const [variantEdit, setVariantEdit] = useState({
@@ -342,6 +343,23 @@ export default function ProductEdit() {
       },
       auth: true,
     });
+    setNewImage({ url: '', alt: '', position: '0', isPrimary: false });
+    await loadProduct();
+  }
+
+  async function uploadImageFile() {
+    if (!productId || !uploadFile) {
+      setErr('Choose a JPEG or PNG file first');
+      return;
+    }
+    setErr('');
+    const form = new FormData();
+    form.append('file', uploadFile);
+    if (newImage.alt.trim()) form.append('alt', newImage.alt.trim());
+    form.append('position', String(parseInt(newImage.position, 10) || 0));
+    form.append('isPrimary', String(!!newImage.isPrimary));
+    await apiFetch(ADMIN.productImageUpload(productId), { method: 'POST', body: form, auth: true });
+    setUploadFile(null);
     setNewImage({ url: '', alt: '', position: '0', isPrimary: false });
     await loadProduct();
   }
@@ -868,9 +886,30 @@ export default function ProductEdit() {
               {canWrite ? (
                 <div style={{ padding: 16, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)' }}>
                   <h3 className="caps" style={{ marginBottom: 12 }}>Add image</h3>
+                  <div style={{ marginBottom: 16 }}>
+                    <label className="field-label">Upload a file (JPEG / PNG, ≤5MB)</label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                      />
+                      <button
+                        type="button"
+                        className="btn sm"
+                        disabled={!uploadFile}
+                        onClick={() => void uploadImageFile().catch((e) => setErr(e.message || 'Upload failed'))}
+                      >
+                        Upload file
+                      </button>
+                    </div>
+                    <p className="admin-muted" style={{ marginTop: 4 }}>
+                      Stored on object storage. Uses the Alt / Position / Primary below.
+                    </p>
+                  </div>
                   <div className="admin-filters-grid">
                     <div style={{ gridColumn: 'span 2' }}>
-                      <label className="field-label">Image URL</label>
+                      <label className="field-label">Image URL (or paste a URL)</label>
                       <input className="input mono" value={newImage.url} onChange={(e) => setNewImage((x) => ({ ...x, url: e.target.value }))} />
                     </div>
                     <div>
