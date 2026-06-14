@@ -71,4 +71,18 @@ export const ADMIN = {
   customer: (id) => `/api/v1/admin/customers/${id}`,
   customerTier: (id) => `/api/v1/admin/customers/${id}/tier`,
   customerImpersonate: (id) => `/api/v1/admin/customers/${id}/impersonate`,
+
+  dashboardKpis: (query) => pathWithQuery('/api/v1/admin/dashboard/kpis', query),
+  dashboardSalesOverTime: (query) => pathWithQuery('/api/v1/admin/dashboard/sales-over-time', query),
+  dashboardFunnel: (query) => pathWithQuery('/api/v1/admin/dashboard/funnel', query),
+  dashboardTopProducts: (query) => pathWithQuery('/api/v1/admin/dashboard/top-products', query),
+  dashboardSlowPages: (query) => pathWithQuery('/api/v1/admin/dashboard/slow-pages', query),
+  dashboardTopPages: (query) => pathWithQuery('/api/v1/admin/dashboard/top-pages', query),
+  dashboardPreorderPipeline: () => '/api/v1/admin/dashboard/preorder-pipeline',
+  dashboardActionItems: () => '/api/v1/admin/dashboard/action-items',
+  dashboardCustomers: (query) => pathWithQuery('/api/v1/admin/dashboard/customers', query),
+  dashboardMarketing: (query) => pathWithQuery('/api/v1/admin/dashboard/marketing', query),
+  dashboardOperations: (query) => pathWithQuery('/api/v1/admin/dashboard/operations', query),
+  dashboardCatalog: (query) => pathWithQuery('/api/v1/admin/dashboard/catalog', query),
+  dashboardExperience: (query) => pathWithQuery('/api/v1/admin/dashboard/experience', query),
 };
