@@ -10,6 +10,15 @@ export const MERCHANDISER_ROLES = ['super_admin', 'admin', 'merchandiser'];
 /** Matches `RESTOCK_ROLES` on admin-api — back-in-stock request queue. */
 export const RESTOCK_ROLES = ['super_admin', 'admin', 'ops', 'merchandiser'];
 
+/** Matches `MARKETER_ROLES` on admin-api — promos, reviews, CMS writes. */
+export const MARKETER_ROLES = ['super_admin', 'admin', 'marketer'];
+
+/** Matches `CMS_WRITE_ROLES` on admin-api — CMS block writes. */
+export const CMS_WRITE_ROLES = ['super_admin', 'admin', 'merchandiser', 'marketer'];
+
+/** Customer tier updates — admin-api `PATCH .../tier`. */
+export const CUSTOMER_ADMIN_ROLES = ['super_admin', 'admin'];
+
 /** @type {{ to: string, label: string, roles: string[] }[]} */
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', roles: STAFF_ROLES },

@@ -54,4 +54,21 @@ export const ADMIN = {
 
   integrationTokens: () => '/api/v1/admin/integration-tokens',
   integrationToken: (id) => `/api/v1/admin/integration-tokens/${id}`,
+
+  promos: (query) => pathWithQuery('/api/v1/admin/promos', query),
+  promo: (id) => `/api/v1/admin/promos/${id}`,
+  promoRedemptions: (query) => pathWithQuery('/api/v1/admin/promos/redemptions', query),
+
+  reviewsPending: (query) => pathWithQuery('/api/v1/admin/reviews/pending', query),
+  review: (id) => `/api/v1/admin/reviews/${id}`,
+  reviewApprove: (id) => `/api/v1/admin/reviews/${id}/approve`,
+  reviewReject: (id) => `/api/v1/admin/reviews/${id}/reject`,
+
+  cms: (query) => pathWithQuery('/api/v1/admin/cms', query),
+  cmsBlock: (id) => `/api/v1/admin/cms/${id}`,
+
+  customers: (query) => pathWithQuery('/api/v1/admin/customers', query),
+  customer: (id) => `/api/v1/admin/customers/${id}`,
+  customerTier: (id) => `/api/v1/admin/customers/${id}/tier`,
+  customerImpersonate: (id) => `/api/v1/admin/customers/${id}/impersonate`,
 };
