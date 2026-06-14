@@ -6,6 +6,9 @@ import { useRole } from '../../auth/useRole.js';
 import { MERCHANDISER_ROLES } from '../../auth/navConfig.js';
 import { IconButton } from '../../components/IconButton.jsx';
 import { VariantColorSelect, VariantSizeSelect } from '../../components/VariantOptionPickers.jsx';
+import { uiEmit } from '../../lib/uiBus.js';
+
+const BULK_UPLOAD_MAX_FILES = 20;
 
 const AUDIENCES = ['Women', 'Men', 'Unisex', 'Kids', 'Family'];
 
@@ -76,12 +79,12 @@ export default function ProductEdit() {
   const [pendingImages, setPendingImages] = useState([{ url: '', alt: '', position: '0', isPrimary: false }]);
 
   const [newImage, setNewImage] = useState({ url: '', alt: '', position: '0', isPrimary: false });
-  const [uploadFile, setUploadFile] = useState(null);
+  const [queue, setQueue] = useState([]); // File[] queued for bulk upload
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [addMode, setAddMode] = useState('upload'); // 'upload' | 'url'
-  const previewUrl = useMemo(() => (uploadFile ? URL.createObjectURL(uploadFile) : null), [uploadFile]);
-  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  const queuePreviews = useMemo(() => queue.map((f) => URL.createObjectURL(f)), [queue]);
+  useEffect(() => () => { queuePreviews.forEach((u) => URL.revokeObjectURL(u)); }, [queuePreviews]);
   // New images append to the end — avoids duplicate positions.
   const nextPosition = useMemo(
     () => (images.length ? Math.max(...images.map((i) => Number(i.position) || 0)) + 1 : 0),
@@ -367,22 +370,36 @@ export default function ProductEdit() {
     await loadProduct();
   }
 
-  async function uploadImageFile() {
-    if (!productId || !uploadFile) {
-      setErr('Choose a JPEG or PNG file first');
+  // Accumulate dropped/selected files into the upload queue (JPEG/PNG only, capped).
+  function addFilesToQueue(fileList) {
+    const files = Array.from(fileList || []);
+    const valid = files.filter((f) => /^image\/(jpeg|png)$/.test(f.type));
+    if (valid.length < files.length) setErr('Only JPEG or PNG files are supported');
+    else setErr('');
+    setQueue((q) => [...q, ...valid].slice(0, BULK_UPLOAD_MAX_FILES));
+  }
+
+  async function uploadImagesBulk() {
+    if (!productId || queue.length === 0) {
+      setErr('Add at least one JPEG or PNG file first');
       return;
     }
     setErr('');
     setUploading(true);
     try {
       const form = new FormData();
-      form.append('file', uploadFile);
+      for (const file of queue) form.append('files', file);
       if (newImage.alt.trim()) form.append('alt', newImage.alt.trim());
-      form.append('position', String(nextPosition));
-      form.append('isPrimary', String(!!newImage.isPrimary));
-      await apiFetch(ADMIN.productImageUpload(productId), { method: 'POST', body: form, auth: true });
-      setUploadFile(null);
-      setNewImage({ url: '', alt: '', position: '0', isPrimary: false });
+      const result = await apiFetch(ADMIN.productImageUploadBulk(productId), { method: 'POST', body: form, auth: true });
+      const createdCount = result.created?.length ?? 0;
+      const failedCount = result.failed?.length ?? 0;
+      uiEmit({
+        type: 'toast',
+        tone: failedCount > 0 ? (createdCount > 0 ? 'info' : 'error') : 'success',
+        message: `Added ${createdCount} · ${failedCount} failed`,
+      });
+      setQueue([]);
+      setNewImage((x) => ({ ...x, alt: '' }));
       await loadProduct();
     } finally {
       setUploading(false);
@@ -946,7 +963,7 @@ export default function ProductEdit() {
                           setAddMode(m);
                           setErr('');
                           if (m === 'upload') setNewImage((x) => ({ ...x, url: '' }));
-                          else setUploadFile(null);
+                          else setQueue([]);
                         }}
                       >
                         {label}
@@ -961,14 +978,9 @@ export default function ProductEdit() {
                       onDrop={(e) => {
                         e.preventDefault();
                         setDragOver(false);
-                        const f = e.dataTransfer.files?.[0];
-                        if (f && /^image\/(jpeg|png)$/.test(f.type)) setUploadFile(f);
-                        else if (f) setErr('Only JPEG or PNG files are supported');
+                        addFilesToQueue(e.dataTransfer.files);
                       }}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 14,
                         padding: 16,
                         border: `1.5px dashed ${dragOver ? 'var(--accent, #7c8cff)' : 'var(--line)'}`,
                         borderRadius: 'var(--radius-lg)',
@@ -976,29 +988,66 @@ export default function ProductEdit() {
                         transition: 'border-color .15s, background .15s',
                       }}
                     >
-                      {previewUrl ? (
-                        <img src={previewUrl} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
-                      ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <div style={{ width: 72, height: 72, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', color: 'var(--muted, #888)', fontSize: 11 }}>
                           IMG
                         </div>
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <label className="btn sm" style={{ cursor: 'pointer', display: 'inline-block' }}>
-                          Choose file
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png"
-                            style={{ display: 'none' }}
-                            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                          />
-                        </label>
-                        <div className="admin-muted" style={{ marginTop: 6, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {uploadFile
-                            ? `${uploadFile.name} · ${Math.round(uploadFile.size / 1024)} KB`
-                            : 'or drag & drop here · JPEG / PNG, ≤5MB'}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <label className="btn sm" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                            Choose files
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png"
+                              multiple
+                              style={{ display: 'none' }}
+                              onChange={(e) => { addFilesToQueue(e.target.files); e.target.value = ''; }}
+                            />
+                          </label>
+                          <div className="admin-muted" style={{ marginTop: 6, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {queue.length > 0
+                              ? `${queue.length} photo${queue.length === 1 ? '' : 's'} queued`
+                              : `or drag & drop here · JPEG / PNG, ≤5MB each, up to ${BULK_UPLOAD_MAX_FILES}`}
+                          </div>
                         </div>
                       </div>
+                      {queue.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
+                          {queue.map((file, idx) => (
+                            <div key={`${file.name}-${file.lastModified}-${idx}`} style={{ width: 72 }}>
+                              <div style={{ position: 'relative' }}>
+                                <img src={queuePreviews[idx]} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                                <button
+                                  type="button"
+                                  aria-label={`Remove ${file.name}`}
+                                  onClick={() => setQueue((q) => q.filter((_, i) => i !== idx))}
+                                  style={{
+                                    position: 'absolute',
+                                    top: -8,
+                                    right: -8,
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: '50%',
+                                    border: '1px solid var(--line)',
+                                    background: 'var(--surface, #fff)',
+                                    color: 'var(--ink)',
+                                    fontSize: 11,
+                                    lineHeight: 1,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="admin-muted" style={{ marginTop: 4, fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {file.name} · {Math.round(file.size / 1024)} KB
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <div>
@@ -1014,32 +1063,38 @@ export default function ProductEdit() {
 
                   <div className="admin-filters-grid" style={{ marginTop: 14 }}>
                     <div style={{ gridColumn: 'span 2' }}>
-                      <label className="field-label">Alt text</label>
+                      <label className="field-label">{addMode === 'upload' ? 'Alt text (applied to all)' : 'Alt text'}</label>
                       <input className="input" value={newImage.alt} onChange={(e) => setNewImage((x) => ({ ...x, alt: e.target.value }))} />
                     </div>
-                    <div>
-                      <label className="field-label">&nbsp;</label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <input type="checkbox" checked={newImage.isPrimary} onChange={(e) => setNewImage((x) => ({ ...x, isPrimary: e.target.checked }))} />
-                        Set as primary
-                      </label>
-                    </div>
+                    {addMode === 'url' ? (
+                      <div>
+                        <label className="field-label">&nbsp;</label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input type="checkbox" checked={newImage.isPrimary} onChange={(e) => setNewImage((x) => ({ ...x, isPrimary: e.target.checked }))} />
+                          Set as primary
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                   <p className="admin-muted" style={{ marginTop: 6, fontSize: 12 }}>
-                    Added at position {nextPosition}. {newImage.isPrimary ? 'Will become the primary image.' : ''}
+                    {addMode === 'upload'
+                      ? 'Positions are assigned automatically; the first photo of an empty product becomes primary.'
+                      : `Added at position ${nextPosition}. ${newImage.isPrimary ? 'Will become the primary image.' : ''}`}
                   </p>
 
                   <button
                     type="button"
                     className="btn sm"
                     style={{ marginTop: 12 }}
-                    disabled={addMode === 'upload' ? !uploadFile || uploading : !newImage.url.trim()}
+                    disabled={addMode === 'upload' ? queue.length === 0 || uploading : !newImage.url.trim()}
                     onClick={() => {
-                      if (addMode === 'upload') void uploadImageFile().catch((e) => setErr(e.message || 'Upload failed'));
+                      if (addMode === 'upload') void uploadImagesBulk().catch((e) => setErr(e.message || 'Upload failed'));
                       else void addImageRow().catch((e) => setErr(e.message || 'Failed'));
                     }}
                   >
-                    {addMode === 'upload' ? (uploading ? 'Uploading…' : 'Upload image') : 'Add image'}
+                    {addMode === 'upload'
+                      ? (uploading ? 'Uploading…' : `Upload ${queue.length} photo${queue.length === 1 ? '' : 's'}`)
+                      : 'Add image'}
                   </button>
                 </div>
               ) : null}
