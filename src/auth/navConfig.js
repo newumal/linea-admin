@@ -28,6 +28,7 @@ export const NAV_ITEMS = [
   { to: '/analytics', label: 'Analytics', roles: STAFF_ROLES },
   { to: '/audit', label: 'Audit log', roles: ['super_admin', 'admin'] },
   { to: '/settings/users', label: 'Users', roles: ['super_admin'] },
+  { to: '/settings/integrations', label: 'API tokens', roles: ['super_admin', 'admin'] },
 ];
 
 /** @param {string | undefined} role */
