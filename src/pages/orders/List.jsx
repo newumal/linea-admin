@@ -81,6 +81,7 @@ export default function OrdersList() {
     q: '',
     placedFrom: '',
     placedTo: '',
+    payMethod: '',
     limit: 50,
     offset: 0,
   });
@@ -99,12 +100,15 @@ export default function OrdersList() {
     if (filters.q.trim()) q.q = filters.q.trim();
     if (filters.placedFrom) q.placedFrom = filters.placedFrom;
     if (filters.placedTo) q.placedTo = filters.placedTo;
+    if (filters.payMethod) q.payMethod = filters.payMethod;
     q.limit = String(filters.limit);
     q.offset = String(filters.offset);
     return q;
   }, [filters]);
 
-  const hasActiveFilters = Boolean(filters.status || filters.q.trim() || filters.placedFrom || filters.placedTo);
+  const hasActiveFilters = Boolean(
+    filters.status || filters.q.trim() || filters.placedFrom || filters.placedTo || filters.payMethod,
+  );
 
   function samePresetValue(value) {
     return (
@@ -245,6 +249,7 @@ export default function OrdersList() {
       { key: 'email', label: 'Email' },
       { key: 'placedAt', label: 'Placed At', value: (o) => (o.placedAt ? new Date(o.placedAt).toISOString() : '') },
       { key: 'totalGrand', label: 'Total', value: (o) => Number(o.totalGrand ?? 0).toFixed(2) },
+      { key: 'payMethod', label: 'Payment' },
       { key: 'status', label: 'Status' },
       { key: 'id', label: 'Order ID' },
     ],
@@ -260,6 +265,7 @@ export default function OrdersList() {
       { key: 'email', label: 'Email' },
       { key: 'placedAt', label: 'Placed' },
       { key: 'totalGrand', label: 'Total' },
+      { key: 'payMethod', label: 'Payment' },
       { key: 'status', label: 'Status' },
     ].filter(Boolean);
     return cols;
@@ -301,6 +307,21 @@ export default function OrdersList() {
               {ORDER_STATUSES.map((s) => (
                 <option key={s || 'any'} value={s}>
                   {s || 'Any'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="o-pay">Payment</label>
+            <select
+              id="o-pay"
+              className={`input ${filters.payMethod ? 'filter-active' : ''}`}
+              value={filters.payMethod}
+              onChange={(e) => setFilters((f) => ({ ...f, payMethod: e.target.value, offset: 0 }))}
+            >
+              {['', 'cod', 'card', 'apple_pay', 'paypal', 'klarna'].map((m) => (
+                <option key={m || 'any'} value={m}>
+                  {m ? m.toUpperCase() : 'Any'}
                 </option>
               ))}
             </select>
@@ -533,6 +554,12 @@ export default function OrdersList() {
                     }
                     if (c.key === 'placedAt') return <td key={c.key} className="mono">{o.placedAt ? new Date(o.placedAt).toLocaleString() : '—'}</td>;
                     if (c.key === 'totalGrand') return <td key={c.key}>${Number(o.totalGrand).toFixed(2)}</td>;
+                    if (c.key === 'payMethod')
+                      return (
+                        <td key={c.key} className="mono" style={{ fontSize: 11, textTransform: 'uppercase' }}>
+                          {o.payMethod || '—'}
+                        </td>
+                      );
                     if (c.key === 'status') {
                       return (
                         <td key={c.key}>
