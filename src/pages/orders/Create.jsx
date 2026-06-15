@@ -12,7 +12,7 @@ const SHIP_METHODS = ['standard', 'express', 'pickup'];
 let lineSeq = 0;
 function emptyLine() {
   lineSeq += 1;
-  return { key: `l${lineSeq}`, productId: '', basePrice: 0, variantId: '', size: '', color: '', qty: 1, variants: [], loading: false };
+  return { key: `l${lineSeq}`, productId: '', productName: '', basePrice: 0, variants: [], size: '', color: '', qty: 1, loading: false };
 }
 
 export default function OrderCreate() {
@@ -21,6 +21,12 @@ export default function OrderCreate() {
   const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [brands, setBrands] = useState([]);
+  const [categories, setCategories] = useState([]);
+  // Shared filters for the product pickers.
+  const [pf, setPf] = useState({ q: '', brandId: '', categoryId: '' });
+
   const [lines, setLines] = useState(() => [emptyLine()]);
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [shipping, setShipping] = useState({ line1: '', line2: '', city: '', state: '', zip: '', country: '' });
@@ -30,26 +36,62 @@ export default function OrderCreate() {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
 
+  // Brands + categories for the filter dropdowns (once).
   useEffect(() => {
     let cancelled = false;
-    apiFetch(ADMIN.products({ limit: '200' }), { auth: true })
+    Promise.all([
+      apiFetch(ADMIN.brands({ limit: '100' }), { auth: true }).catch(() => ({ items: [] })),
+      apiFetch(ADMIN.categories({ limit: '100' }), { auth: true }).catch(() => ({ items: [] })),
+    ]).then(([b, c]) => {
+      if (cancelled) return;
+      setBrands(b.items ?? b ?? []);
+      setCategories(c.items ?? c ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Product list, re-fetched whenever a filter changes (limit 100 = endpoint max).
+  /* eslint-disable react-hooks/set-state-in-effect -- async product fetch driven by filter changes */
+  useEffect(() => {
+    let cancelled = false;
+    setProductsLoading(true);
+    const query = { limit: '100' };
+    if (pf.q.trim()) query.q = pf.q.trim();
+    if (pf.brandId) query.brandId = pf.brandId;
+    if (pf.categoryId) query.categoryId = pf.categoryId;
+    apiFetch(ADMIN.products(query), { auth: true })
       .then((d) => {
         if (!cancelled) setProducts(d.items ?? []);
       })
       .catch(() => {
         if (!cancelled) setErr('Could not load products');
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pf]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function patchLine(key, patch) {
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
   async function onProductChange(key, productId) {
-    patchLine(key, { productId, variantId: '', size: '', color: '', basePrice: 0, variants: [], loading: Boolean(productId) });
+    const picked = products.find((p) => p.id === productId);
+    patchLine(key, {
+      productId,
+      productName: picked?.name ?? '',
+      size: '',
+      color: '',
+      basePrice: 0,
+      variants: [],
+      loading: Boolean(productId),
+    });
     if (!productId) return;
     try {
       const detail = await apiFetch(ADMIN.product(productId), { auth: true });
@@ -60,20 +102,10 @@ export default function OrderCreate() {
     }
   }
 
-  function onVariantChange(key, variantId) {
-    setLines((ls) =>
-      ls.map((l) => {
-        if (l.key !== key) return l;
-        const v = l.variants.find((x) => x.id === variantId);
-        return { ...l, variantId, size: v?.size ?? '', color: v?.colorName ?? '' };
-      }),
-    );
-  }
-
   const estTotal = useMemo(() => {
     let t = 0;
     for (const l of lines) {
-      const v = l.variants.find((x) => x.id === l.variantId);
+      const v = l.variants.find((x) => (x.size ?? '') === (l.size ?? '') && x.colorName === l.color);
       if (v) t += (l.basePrice + Number(v.priceDelta ?? 0)) * (Number(l.qty) || 0);
     }
     return t;
@@ -86,7 +118,9 @@ export default function OrderCreate() {
     if (!lines.length) return 'Add at least one item';
     for (const l of lines) {
       if (!l.productId) return 'Pick a product for every line';
-      if (!l.variantId) return 'Pick a size/colour for every line';
+      const v = l.variants.find((x) => (x.size ?? '') === (l.size ?? '') && x.colorName === l.color);
+      if (!v) return 'Pick a valid size + colour for every line';
+      if (v.stock < (Number(l.qty) || 0)) return `Only ${v.stock} in stock for ${l.productName}`;
       if (!Number(l.qty) || Number(l.qty) < 1) return 'Quantity must be at least 1';
     }
     return '';
@@ -104,17 +138,8 @@ export default function OrderCreate() {
     try {
       const trimmed = (s) => (s.trim() ? s.trim() : undefined);
       const payload = {
-        items: lines.map((l) => ({
-          productId: l.productId,
-          size: l.size || undefined,
-          color: l.color,
-          qty: Number(l.qty),
-        })),
-        customer: {
-          name: customer.name.trim(),
-          email: customer.email.trim(),
-          phone: trimmed(customer.phone),
-        },
+        items: lines.map((l) => ({ productId: l.productId, size: l.size || undefined, color: l.color, qty: Number(l.qty) })),
+        customer: { name: customer.name.trim(), email: customer.email.trim(), phone: trimmed(customer.phone) },
         shipping: {
           line1: shipping.line1.trim(),
           line2: trimmed(shipping.line2),
@@ -146,27 +171,87 @@ export default function OrderCreate() {
     );
   }
 
+  // Product options always include each line's current selection, even if filtered out.
+  const selectedIds = new Set(lines.map((l) => l.productId).filter(Boolean));
+  const pickedById = new Map(lines.filter((l) => l.productId).map((l) => [l.productId, l.productName]));
+  const productOptions = [
+    ...products,
+    ...[...selectedIds].filter((id) => !products.some((p) => p.id === id)).map((id) => ({ id, name: pickedById.get(id) || '(selected)' })),
+  ];
+
   return (
     <div>
       <h1 className="admin-page-title">New order</h1>
       <p className="admin-page-sub">
-        Manually record an order placed by phone, in person, or off-platform. It is tagged{' '}
-        <strong>manual</strong> in the orders list.
+        Manually record an order placed by phone, in person, or off-platform. It is tagged <strong>manual</strong> in the orders list.
       </p>
 
-      <form onSubmit={submit} style={{ maxWidth: 880, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <form onSubmit={submit} style={{ maxWidth: 980, display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* Items */}
         <section className="admin-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontWeight: 700 }}>Items</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700 }}>Items</span>
+            <span style={{ fontSize: 11, color: 'var(--mute)' }}>
+              {productsLoading ? 'Loading products…' : `${products.length} products`}
+            </span>
+          </div>
+
+          {/* Shared product filters */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <label className="field-label">Search (name / slug / code)</label>
+              <input
+                className="input"
+                value={pf.q}
+                placeholder="Search products…"
+                onChange={(e) => setPf((f) => ({ ...f, q: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="field-label">Brand</label>
+              <select className="input" value={pf.brandId} onChange={(e) => setPf((f) => ({ ...f, brandId: e.target.value }))}>
+                <option value="">All brands</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Category</label>
+              <select className="input" value={pf.categoryId} onChange={(e) => setPf((f) => ({ ...f, categoryId: e.target.value }))}>
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {lines.map((l) => {
-            const variant = l.variants.find((x) => x.id === l.variantId);
+            const sizes = [...new Set(l.variants.map((v) => v.size ?? ''))];
+            const hasSizes = sizes.some((s) => s !== '');
+            const colorVariants = l.variants.filter((v) => (v.size ?? '') === (l.size ?? ''));
+            const colorsSeen = new Set();
+            const colorOptions = colorVariants.filter((v) => {
+              if (colorsSeen.has(v.colorName)) return false;
+              colorsSeen.add(v.colorName);
+              return true;
+            });
+            const variant = l.variants.find((v) => (v.size ?? '') === (l.size ?? '') && v.colorName === l.color);
             return (
-              <div key={l.key} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 80px 90px 32px', gap: 10, alignItems: 'end' }}>
+              <div
+                key={l.key}
+                style={{ display: 'grid', gridTemplateColumns: '2.4fr 1fr 1.4fr 70px 84px 28px', gap: 10, alignItems: 'end' }}
+              >
                 <div>
                   <label className="field-label">Product</label>
                   <select className="input" value={l.productId} onChange={(e) => onProductChange(l.key, e.target.value)}>
                     <option value="">Select product…</option>
-                    {products.map((p) => (
+                    {productOptions.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                         {p.brandName ? ` — ${p.brandName}` : ''}
@@ -175,20 +260,45 @@ export default function OrderCreate() {
                   </select>
                 </div>
                 <div>
-                  <label className="field-label">Size · Colour</label>
+                  <label className="field-label">Size</label>
                   <select
                     className="input"
-                    value={l.variantId}
-                    disabled={!l.productId || l.loading}
-                    onChange={(e) => onVariantChange(l.key, e.target.value)}
+                    value={l.size}
+                    disabled={!l.productId || l.loading || !hasSizes}
+                    onChange={(e) => patchLine(l.key, { size: e.target.value, color: '' })}
                   >
-                    <option value="">{l.loading ? 'Loading…' : 'Select…'}</option>
-                    {l.variants.map((v) => (
-                      <option key={v.id} value={v.id} disabled={v.stock < 1}>
-                        {[v.size, v.colorName].filter(Boolean).join(' · ')} ({v.stock} in stock)
-                      </option>
-                    ))}
+                    <option value="">{!hasSizes ? '—' : l.loading ? '…' : 'Size…'}</option>
+                    {sizes
+                      .filter((s) => s !== '')
+                      .map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
                   </select>
+                </div>
+                <div>
+                  <label className="field-label">Colour</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {variant?.colorHex && (
+                      <span
+                        style={{ width: 16, height: 16, borderRadius: 3, flex: '0 0 auto', border: '1px solid var(--line)', background: variant.colorHex }}
+                      />
+                    )}
+                    <select
+                      className="input"
+                      value={l.color}
+                      disabled={!l.productId || l.loading || (hasSizes && !l.size)}
+                      onChange={(e) => patchLine(l.key, { color: e.target.value })}
+                    >
+                      <option value="">{l.loading ? '…' : 'Colour…'}</option>
+                      {colorOptions.map((v) => (
+                        <option key={v.colorName} value={v.colorName} disabled={v.stock < 1}>
+                          {v.colorName} ({v.stock})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="field-label">Qty</label>
