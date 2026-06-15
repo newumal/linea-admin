@@ -16,6 +16,7 @@ export const AUTH = {
 export const ADMIN = {
   orders: (query) => pathWithQuery('/api/v1/admin/orders', query),
   order: (id) => `/api/v1/admin/orders/${id}`,
+  orderItems: (id) => `/api/v1/admin/orders/${id}/items`,
   orderStatus: (id) => `/api/v1/admin/orders/${id}/status`,
   orderFulfill: (id) => `/api/v1/admin/orders/${id}/fulfill`,
   orderRefund: (id) => `/api/v1/admin/orders/${id}/refund`,
