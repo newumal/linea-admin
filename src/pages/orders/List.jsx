@@ -82,6 +82,7 @@ export default function OrdersList() {
     placedFrom: '',
     placedTo: '',
     payMethod: '',
+    source: '',
     limit: 50,
     offset: 0,
   });
@@ -101,13 +102,19 @@ export default function OrdersList() {
     if (filters.placedFrom) q.placedFrom = filters.placedFrom;
     if (filters.placedTo) q.placedTo = filters.placedTo;
     if (filters.payMethod) q.payMethod = filters.payMethod;
+    if (filters.source) q.source = filters.source;
     q.limit = String(filters.limit);
     q.offset = String(filters.offset);
     return q;
   }, [filters]);
 
   const hasActiveFilters = Boolean(
-    filters.status || filters.q.trim() || filters.placedFrom || filters.placedTo || filters.payMethod,
+    filters.status ||
+      filters.q.trim() ||
+      filters.placedFrom ||
+      filters.placedTo ||
+      filters.payMethod ||
+      filters.source,
   );
 
   function samePresetValue(value) {
@@ -186,6 +193,8 @@ export default function OrdersList() {
       q: '',
       placedFrom: '',
       placedTo: '',
+      payMethod: '',
+      source: '',
       offset: 0,
     }));
   }
@@ -250,6 +259,7 @@ export default function OrdersList() {
       { key: 'placedAt', label: 'Placed At', value: (o) => (o.placedAt ? new Date(o.placedAt).toISOString() : '') },
       { key: 'totalGrand', label: 'Total', value: (o) => Number(o.totalGrand ?? 0).toFixed(2) },
       { key: 'payMethod', label: 'Payment' },
+      { key: 'source', label: 'Source' },
       { key: 'status', label: 'Status' },
       { key: 'id', label: 'Order ID' },
     ],
@@ -266,6 +276,7 @@ export default function OrdersList() {
       { key: 'placedAt', label: 'Placed' },
       { key: 'totalGrand', label: 'Total' },
       { key: 'payMethod', label: 'Payment' },
+      { key: 'source', label: 'Source' },
       { key: 'status', label: 'Status' },
     ].filter(Boolean);
     return cols;
@@ -291,8 +302,17 @@ export default function OrdersList() {
 
   return (
     <div>
-      <h1 className="admin-page-title">Orders</h1>
-      <p className="admin-page-sub">Filter, triage, and bulk-update fulfillment. Saved presets sync to this browser.</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <h1 className="admin-page-title">Orders</h1>
+          <p className="admin-page-sub">Filter, triage, and bulk-update fulfillment. Saved presets sync to this browser.</p>
+        </div>
+        {canWrite && (
+          <Link to="/orders/new" className="btn">
+            + New order
+          </Link>
+        )}
+      </div>
 
       <div className="admin-toolbar">
         <div className="admin-filters-grid">
@@ -322,6 +342,21 @@ export default function OrdersList() {
               {['', 'cod', 'card', 'apple_pay', 'paypal', 'klarna'].map((m) => (
                 <option key={m || 'any'} value={m}>
                   {m ? m.toUpperCase() : 'Any'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="o-source">Source</label>
+            <select
+              id="o-source"
+              className={`input ${filters.source ? 'filter-active' : ''}`}
+              value={filters.source}
+              onChange={(e) => setFilters((f) => ({ ...f, source: e.target.value, offset: 0 }))}
+            >
+              {['', 'web', 'manual', 'bot'].map((s) => (
+                <option key={s || 'any'} value={s}>
+                  {s ? s.toUpperCase() : 'Any'}
                 </option>
               ))}
             </select>
@@ -558,6 +593,12 @@ export default function OrdersList() {
                       return (
                         <td key={c.key} className="mono" style={{ fontSize: 11, textTransform: 'uppercase' }}>
                           {o.payMethod || '—'}
+                        </td>
+                      );
+                    if (c.key === 'source')
+                      return (
+                        <td key={c.key} className="mono" style={{ fontSize: 11, textTransform: 'uppercase' }}>
+                          {o.source || '—'}
                         </td>
                       );
                     if (c.key === 'status') {
