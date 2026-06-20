@@ -60,6 +60,7 @@ export const ADMIN = {
   posRegister: (id) => `/api/v1/admin/pos/registers/${id}`,
   posRegisterPair: (id) => `/api/v1/admin/pos/registers/${id}/pair-device`,
   posRegisterFavorites: (id) => `/api/v1/admin/pos/registers/${id}/favorites`,
+  posRegisterGridConfig: (id) => `/api/v1/admin/pos/registers/${id}/grid-config`,
   posStaffPins: () => '/api/v1/admin/pos/staff-pins',
   posStaffPin: (userId) => `/api/v1/admin/pos/staff-pins/${userId}`,
 

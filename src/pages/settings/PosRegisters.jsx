@@ -183,6 +183,106 @@ function FavoritesModal({ register, onClose }) {
   );
 }
 
+function GridConfigModal({ register, onClose }) {
+  const [hiddenCategories, setHiddenCategories] = useState([]);
+  const [defaultCategory, setDefaultCategory] = useState('All');
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [cfg, prods] = await Promise.all([
+          apiFetch(ADMIN.posRegisterGridConfig(register.id), { auth: true }),
+          apiFetch(ADMIN.products({ limit: '100', offset: '0' }), { auth: true }),
+        ]);
+        if (cancelled) return;
+        setHiddenCategories(cfg.gridConfig?.hiddenCategories ?? []);
+        setDefaultCategory(cfg.gridConfig?.defaultCategory ?? 'All');
+        const cats = new Set();
+        for (const p of prods.items ?? []) {
+          if (p.categoryName) cats.add(p.categoryName);
+        }
+        setCategories([...cats].sort((a, b) => a.localeCompare(b)));
+      } catch (e) {
+        if (!cancelled) setErr(e.message || 'Failed to load');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [register.id]);
+
+  function toggleCategory(cat) {
+    setHiddenCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+    );
+  }
+
+  async function save() {
+    setSaving(true);
+    setErr('');
+    try {
+      await apiFetch(ADMIN.posRegisterGridConfig(register.id), {
+        method: 'PUT',
+        body: { hiddenCategories, defaultCategory },
+        auth: true,
+      });
+      onClose();
+    } catch (e) {
+      setErr(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const visibleCats = categories.filter((c) => !hiddenCategories.includes(c));
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="admin-modal admin-modal-wide" role="dialog" onClick={(e) => e.stopPropagation()}>
+        <h2>Grid settings — {register.name}</h2>
+        <p className="admin-muted">Hide categories from the register tabs and choose the opening category.</p>
+        {loading ? <p className="admin-muted">Loading…</p> : null}
+        {err ? <p className="admin-err">{err}</p> : null}
+        {!loading ? (
+          <>
+            <label className="field-label" htmlFor="grid-default">Default category tab</label>
+            <select id="grid-default" className="input" value={defaultCategory} onChange={(e) => setDefaultCategory(e.target.value)}>
+              <option value="All">All</option>
+              {visibleCats.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <span className="field-label" style={{ display: 'block', marginTop: 16 }}>Hidden categories</span>
+            <div className="admin-fav-grid" style={{ marginTop: 8 }}>
+              {categories.map((c) => (
+                <label key={c} className={`admin-fav-item ${hiddenCategories.includes(c) ? 'selected' : ''}`}>
+                  <input type="checkbox" checked={hiddenCategories.includes(c)} onChange={() => toggleCategory(c)} />
+                  <span>Hide {c}</span>
+                </label>
+              ))}
+              {categories.length === 0 ? <p className="admin-muted">No categories in catalog.</p> : null}
+            </div>
+          </>
+        ) : null}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <button type="button" className="btn sm" disabled={saving} onClick={() => void save()}>
+            {saving ? 'Saving…' : 'Save grid settings'}
+          </button>
+          <button type="button" className="btn sm ghost" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StaffPinsPanel() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -326,6 +426,7 @@ export default function PosRegisters() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [pairTarget, setPairTarget] = useState(null);
   const [favTarget, setFavTarget] = useState(null);
+  const [gridTarget, setGridTarget] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -427,6 +528,9 @@ export default function PosRegisters() {
                             <button type="button" className="btn sm ghost" onClick={() => setFavTarget(r)}>
                               Favorites
                             </button>
+                            <button type="button" className="btn sm ghost" onClick={() => setGridTarget(r)}>
+                              Grid
+                            </button>
                             <button type="button" className="btn sm ghost" onClick={() => setDeleteTarget(r)}>
                               Delete
                             </button>
@@ -489,6 +593,7 @@ export default function PosRegisters() {
 
       {pairTarget ? <PairDeviceModal register={pairTarget} onClose={() => setPairTarget(null)} /> : null}
       {favTarget ? <FavoritesModal register={favTarget} onClose={() => setFavTarget(null)} /> : null}
+      {gridTarget ? <GridConfigModal register={gridTarget} onClose={() => setGridTarget(null)} /> : null}
     </div>
   );
 }
