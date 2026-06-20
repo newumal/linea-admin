@@ -5,6 +5,7 @@ import { ProtectedLayout } from './layout/ProtectedLayout.jsx';
 import { RoleGate } from './layout/RoleGate.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import OrdersList from './pages/orders/List.jsx';
+import PickupQueuePage from './pages/orders/Pickups.jsx';
 import OrderCreate from './pages/orders/Create.jsx';
 import OrderDetail from './pages/orders/Detail.jsx';
 import PreordersKanban from './pages/preorders/Kanban.jsx';
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
               { index: true, element: <Navigate to="/dashboard" replace /> },
               { path: 'dashboard', element: <Dashboard /> },
               { path: 'orders', element: <OrdersList /> },
+              { path: 'orders/pickups', element: <PickupQueuePage /> },
               { path: 'orders/new', element: <OrderCreate /> },
               { path: 'orders/:id', element: <OrderDetail /> },
               { path: 'preorders', element: <PreordersKanban /> },

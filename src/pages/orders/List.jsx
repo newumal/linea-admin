@@ -13,8 +13,6 @@ import { downloadCsv } from '../../lib/csv.js';
 import { useTableKeyboardNav } from '../../hooks/useTableKeyboardNav.js';
 import { ColumnControls, useColumnPrefs } from '../../components/ColumnControls.jsx';
 
-const LS_PRESETS = 'linea-admin-order-filter-presets';
-
 const ORDER_STATUSES = [
   '',
   'pending_payment',
@@ -26,6 +24,15 @@ const ORDER_STATUSES = [
   'cancelled',
   'refunded',
 ];
+
+const LS_PRESETS = 'linea-admin-order-filter-presets';
+
+function fulfillmentLabel(shipMethod) {
+  if (shipMethod === 'pickup') return 'Store pickup';
+  if (shipMethod === 'express') return 'Express';
+  if (shipMethod === 'standard') return 'Standard ship';
+  return shipMethod || '—';
+}
 
 function startOfTodayISO() {
   const d = new Date();
@@ -259,6 +266,7 @@ export default function OrdersList() {
       { key: 'placedAt', label: 'Placed At', value: (o) => (o.placedAt ? new Date(o.placedAt).toISOString() : '') },
       { key: 'totalGrand', label: 'Total', value: (o) => Number(o.totalGrand ?? 0).toFixed(2) },
       { key: 'payMethod', label: 'Payment' },
+      { key: 'shipMethod', label: 'Fulfillment', value: (o) => fulfillmentLabel(o.shipMethod) },
       { key: 'source', label: 'Source' },
       { key: 'status', label: 'Status' },
       { key: 'id', label: 'Order ID' },
@@ -276,6 +284,7 @@ export default function OrdersList() {
       { key: 'placedAt', label: 'Placed' },
       { key: 'totalGrand', label: 'Total' },
       { key: 'payMethod', label: 'Payment' },
+      { key: 'shipMethod', label: 'Fulfillment' },
       { key: 'source', label: 'Source' },
       { key: 'status', label: 'Status' },
     ].filter(Boolean);
@@ -283,7 +292,7 @@ export default function OrdersList() {
   }, [canWrite]);
 
   const colPrefs = useColumnPrefs({
-    storageKey: 'linea-admin:orders:columns:v1',
+    storageKey: 'linea-admin:orders:columns:v2',
     columns: tableColumns,
   });
 
@@ -308,9 +317,14 @@ export default function OrdersList() {
           <p className="admin-page-sub">Filter, triage, and bulk-update fulfillment. Saved presets sync to this browser.</p>
         </div>
         {canWrite && (
-          <Link to="/orders/new" className="btn">
-            + New order
-          </Link>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <Link to="/orders/pickups" className="btn ghost">
+              Pickup queue
+            </Link>
+            <Link to="/orders/new" className="btn">
+              + New order
+            </Link>
+          </div>
         )}
       </div>
 
@@ -593,6 +607,14 @@ export default function OrdersList() {
                       return (
                         <td key={c.key} className="mono" style={{ fontSize: 11, textTransform: 'uppercase' }}>
                           {o.payMethod || '—'}
+                        </td>
+                      );
+                    if (c.key === 'shipMethod')
+                      return (
+                        <td key={c.key}>
+                          <span className={`badge ${o.shipMethod === 'pickup' ? 'ok' : 'muted'}`} style={{ fontSize: 11 }}>
+                            {fulfillmentLabel(o.shipMethod)}
+                          </span>
                         </td>
                       );
                     if (c.key === 'source')
