@@ -354,7 +354,7 @@ export default function OrdersList() {
               value={filters.source}
               onChange={(e) => setFilters((f) => ({ ...f, source: e.target.value, offset: 0 }))}
             >
-              {['', 'web', 'manual', 'bot'].map((s) => (
+              {['', 'web', 'manual', 'bot', 'pos'].map((s) => (
                 <option key={s || 'any'} value={s}>
                   {s ? s.toUpperCase() : 'Any'}
                 </option>
