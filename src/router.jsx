@@ -26,6 +26,7 @@ import AnalyticsIndex from './pages/analytics/index.jsx';
 import AuditLog from './pages/audit/Log.jsx';
 import SettingsUsers from './pages/settings/Users.jsx';
 import SettingsIntegrations from './pages/settings/Integrations.jsx';
+import PosRegisters from './pages/settings/PosRegisters.jsx';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
               { path: 'audit', element: <AuditLog /> },
               { path: 'settings/users', element: <SettingsUsers /> },
               { path: 'settings/integrations', element: <SettingsIntegrations /> },
+              { path: 'settings/pos', element: <PosRegisters /> },
             ],
           },
         ],
