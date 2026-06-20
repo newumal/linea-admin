@@ -16,8 +16,50 @@ const SCOPE_OPTIONS = [
   { value: 'pos:write', label: 'POS write', hint: 'POS terminal create sales & sync' },
 ];
 
+const DEFAULT_BOT_CONFIG = { bot: { includePosOrders: false } };
+
 function fmt(ts) {
   return ts ? new Date(ts).toLocaleString() : '—';
+}
+
+function botConfigFromToken(token) {
+  return token?.config ?? DEFAULT_BOT_CONFIG;
+}
+
+function posOrdersLabel(token) {
+  if (!(token.scopes ?? []).includes('orders:read')) return null;
+  return botConfigFromToken(token).bot.includePosOrders ? 'POS visible' : 'POS hidden';
+}
+
+function BotOrderOptions({ includePosOrders, onChange, idPrefix }) {
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: '12px 14px',
+        border: '1px solid var(--border, #e5e7eb)',
+        borderRadius: 8,
+        background: 'var(--surface-2, #fafafa)',
+      }}
+    >
+      <div className="caps" style={{ marginBottom: 8, fontSize: 12 }}>Bot integration</div>
+      <label htmlFor={`${idPrefix}-pos-orders`} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <input
+          id={`${idPrefix}-pos-orders`}
+          type="checkbox"
+          checked={includePosOrders}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span>
+          <strong>Include in-store (POS) orders</strong>
+          <span className="admin-muted" style={{ display: 'block', marginTop: 2 }}>
+            When off, the bot operator console and integration order API omit counter sales tagged{' '}
+            <span className="mono">source=pos</span>. Manage POS in Admin → Orders instead.
+          </span>
+        </span>
+      </label>
+    </div>
+  );
 }
 
 export default function SettingsIntegrations() {
@@ -29,9 +71,18 @@ export default function SettingsIntegrations() {
   const [err, setErr] = useState('');
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState(['catalog:read']);
+  const [includePosOrders, setIncludePosOrders] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [revealed, setRevealed] = useState(null); // { token, name } — shown once
+  const [revealed, setRevealed] = useState(null);
   const [revokeTarget, setRevokeTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editScopes, setEditScopes] = useState([]);
+  const [editIncludePosOrders, setEditIncludePosOrders] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const createHasOrdersRead = scopes.includes('orders:read');
+  const editHasOrdersRead = editScopes.includes('orders:read');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,8 +103,21 @@ export default function SettingsIntegrations() {
   }, [load]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  function toggleScope(value) {
-    setScopes((s) => (s.includes(value) ? s.filter((x) => x !== value) : [...s, value]));
+  function toggleScope(current, value, setter) {
+    setter((s) => (s.includes(value) ? s.filter((x) => x !== value) : [...s, value]));
+  }
+
+  function openEdit(token) {
+    setEditTarget(token);
+    setEditName(token.name);
+    setEditScopes(token.scopes ?? []);
+    setEditIncludePosOrders(Boolean(botConfigFromToken(token).bot.includePosOrders));
+    setErr('');
+  }
+
+  function closeEdit() {
+    setEditTarget(null);
+    setSaving(false);
   }
 
   async function createToken(e) {
@@ -62,19 +126,49 @@ export default function SettingsIntegrations() {
     setErr('');
     setCreating(true);
     try {
+      const body = {
+        name: name.trim(),
+        scopes,
+        config: { bot: { includePosOrders: createHasOrdersRead ? includePosOrders : false } },
+      };
       const res = await apiFetch(ADMIN.integrationTokens(), {
         method: 'POST',
-        body: { name: name.trim(), scopes },
+        body,
         auth: true,
       });
-      setRevealed({ token: res.token, name: res.name }); // full token returned ONCE
+      setRevealed({ token: res.token, name: res.name });
       setName('');
       setScopes(['catalog:read']);
+      setIncludePosOrders(false);
       await load();
     } catch (e2) {
       setErr(e2.message || 'Failed to create token');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    if (!editTarget || !editName.trim() || editScopes.length === 0) return;
+    setErr('');
+    setSaving(true);
+    try {
+      await apiFetch(ADMIN.integrationToken(editTarget.id), {
+        method: 'PATCH',
+        body: {
+          name: editName.trim(),
+          scopes: editScopes,
+          config: { bot: { includePosOrders: editHasOrdersRead ? editIncludePosOrders : false } },
+        },
+        auth: true,
+      });
+      closeEdit();
+      await load();
+    } catch (e2) {
+      setErr(e2.message || 'Failed to update token');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -102,7 +196,7 @@ export default function SettingsIntegrations() {
         <p>
           A token is a machine credential — it is <strong>not</strong> a login. It is shown{' '}
           <strong>once</strong> at creation; copy it then and paste it into the connecting app.
-          You can revoke a token at any time and it stops working immediately. Each token is
+          You can edit scopes and bot options later, or revoke a token at any time. Each token is
           limited to the <span className="mono">scopes</span> you grant.
         </p>
       </InfoPanel>
@@ -118,6 +212,7 @@ export default function SettingsIntegrations() {
                 <th>Name</th>
                 <th>Token</th>
                 <th>Scopes</th>
+                <th>Bot orders</th>
                 <th>Last used</th>
                 <th>Created</th>
                 <th>Status</th>
@@ -127,11 +222,13 @@ export default function SettingsIntegrations() {
             <tbody>
               {items.map((t) => {
                 const active = !t.revokedAt;
+                const posLabel = posOrdersLabel(t);
                 return (
                   <tr key={t.id}>
                     <td>{t.name}</td>
                     <td className="mono">{t.tokenPrefix}…</td>
                     <td>{(t.scopes ?? []).join(', ')}</td>
+                    <td>{posLabel ? <span className="badge muted">{posLabel}</span> : '—'}</td>
                     <td>{fmt(t.lastUsedAt)}</td>
                     <td>{fmt(t.createdAt)}</td>
                     <td>{active ? <span className="badge ok">Active</span> : <span className="badge muted">Revoked</span>}</td>
@@ -139,7 +236,10 @@ export default function SettingsIntegrations() {
                       <td>
                         <div className="admin-row-actions">
                           {active ? (
-                            <IconButton icon="archive" label="Revoke token" onClick={() => setRevokeTarget(t)} />
+                            <>
+                              <IconButton icon="edit" label="Edit token" onClick={() => openEdit(t)} />
+                              <IconButton icon="archive" label="Revoke token" onClick={() => setRevokeTarget(t)} />
+                            </>
                           ) : (
                             <span className="admin-muted">—</span>
                           )}
@@ -158,7 +258,7 @@ export default function SettingsIntegrations() {
       ) : null}
 
       {canManage ? (
-        <form onSubmit={createToken} style={{ marginTop: 24, maxWidth: 520 }}>
+        <form onSubmit={createToken} style={{ marginTop: 24, maxWidth: 560 }}>
           <h3 className="caps" style={{ marginBottom: 12 }}>New token</h3>
           <div>
             <label className="field-label" htmlFor="tok-name">Name</label>
@@ -179,7 +279,7 @@ export default function SettingsIntegrations() {
                   <input
                     type="checkbox"
                     checked={scopes.includes(s.value)}
-                    onChange={() => toggleScope(s.value)}
+                    onChange={() => toggleScope(scopes, s.value, setScopes)}
                   />
                   <span>
                     <span className="mono">{s.value}</span> — <span className="admin-muted">{s.hint}</span>
@@ -188,13 +288,73 @@ export default function SettingsIntegrations() {
               ))}
             </div>
           </div>
+          {createHasOrdersRead ? (
+            <BotOrderOptions
+              idPrefix="create"
+              includePosOrders={includePosOrders}
+              onChange={setIncludePosOrders}
+            />
+          ) : null}
           <button type="submit" className="btn sm" style={{ marginTop: 14 }} disabled={creating || !name.trim() || scopes.length === 0}>
             {creating ? 'Creating…' : 'Create token'}
           </button>
         </form>
       ) : null}
 
-      {/* One-time token reveal */}
+      {editTarget ? (
+        <div className="admin-dialog-backdrop" role="presentation">
+          <form className="admin-dialog" role="dialog" aria-modal="true" style={{ maxWidth: 560 }} onSubmit={saveEdit}>
+            <h3>Edit token</h3>
+            <p className="admin-muted">
+              Update scopes and bot options for <strong>{editTarget.name}</strong>. The secret value
+              cannot be changed — revoke and create a new token if you need to rotate it.
+            </p>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label" htmlFor="edit-tok-name">Name</label>
+              <input
+                id="edit-tok-name"
+                className="input"
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <span className="field-label">Scopes</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                {SCOPE_OPTIONS.map((s) => (
+                  <label key={s.value} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                    <input
+                      type="checkbox"
+                      checked={editScopes.includes(s.value)}
+                      onChange={() => toggleScope(editScopes, s.value, setEditScopes)}
+                    />
+                    <span>
+                      <span className="mono">{s.value}</span> — <span className="admin-muted">{s.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {editHasOrdersRead ? (
+              <BotOrderOptions
+                idPrefix="edit"
+                includePosOrders={editIncludePosOrders}
+                onChange={setEditIncludePosOrders}
+              />
+            ) : null}
+            <div className="admin-dialog-actions" style={{ marginTop: 18 }}>
+              <button type="button" className="btn sm ghost" onClick={closeEdit} disabled={saving}>
+                Cancel
+              </button>
+              <button type="submit" className="btn sm" disabled={saving || !editName.trim() || editScopes.length === 0}>
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       {revealed ? (
         <div className="admin-dialog-backdrop" role="presentation">
           <div className="admin-dialog" role="dialog" aria-modal="true" style={{ maxWidth: 560 }}>
