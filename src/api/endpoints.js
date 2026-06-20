@@ -56,6 +56,13 @@ export const ADMIN = {
   integrationTokens: () => '/api/v1/admin/integration-tokens',
   integrationToken: (id) => `/api/v1/admin/integration-tokens/${id}`,
 
+  posRegisters: () => '/api/v1/admin/pos/registers',
+  posRegister: (id) => `/api/v1/admin/pos/registers/${id}`,
+  posRegisterPair: (id) => `/api/v1/admin/pos/registers/${id}/pair-device`,
+  posRegisterFavorites: (id) => `/api/v1/admin/pos/registers/${id}/favorites`,
+  posStaffPins: () => '/api/v1/admin/pos/staff-pins',
+  posStaffPin: (userId) => `/api/v1/admin/pos/staff-pins/${userId}`,
+
   promos: (query) => pathWithQuery('/api/v1/admin/promos', query),
   promo: (id) => `/api/v1/admin/promos/${id}`,
   promoRedemptions: (query) => pathWithQuery('/api/v1/admin/promos/redemptions', query),

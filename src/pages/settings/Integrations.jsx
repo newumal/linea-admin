@@ -10,8 +10,10 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.jsx';
 const ADMIN_ROLES = ['super_admin', 'admin'];
 const SCOPE_OPTIONS = [
   { value: 'catalog:read', label: 'Catalog read', hint: 'Read products, variants, stock & images' },
-  { value: 'orders:read', label: 'Orders read', hint: 'Read orders & status (future)' },
-  { value: 'orders:write', label: 'Orders write', hint: 'Create orders & change status (future)' },
+  { value: 'orders:read', label: 'Orders read', hint: 'Read orders & status' },
+  { value: 'orders:write', label: 'Orders write', hint: 'Create orders via bot integration' },
+  { value: 'pos:read', label: 'POS read', hint: 'POS terminal catalog & cashier login' },
+  { value: 'pos:write', label: 'POS write', hint: 'POS terminal create sales & sync' },
 ];
 
 function fmt(ts) {

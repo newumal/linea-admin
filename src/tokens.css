@@ -995,6 +995,87 @@ textarea {
   box-shadow: var(--shadow-lg);
 }
 
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.admin-modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+}
+
+.admin-modal-wide {
+  max-width: 560px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.admin-fav-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.admin-fav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-fav-item.selected {
+  border-color: var(--accent);
+  background: #f0f7ff;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.admin-copy-value {
+  flex: 1;
+  font-size: 11px;
+  word-break: break-all;
+  padding: 8px;
+  background: #f4f4f0;
+  border-radius: 6px;
+  display: block;
+}
+
+.admin-pair-fields {
+  margin-top: 8px;
+  text-align: left;
+}
+
+.admin-muted.small {
+  font-size: 11px;
+}
+
 @media (max-width: 980px) {
   :root {
     --admin-sidebar-w: 220px;
