@@ -377,8 +377,20 @@ textarea {
 }
 .admin-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
+}
+.admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 .admin-table th,
 .admin-table td {
@@ -391,12 +403,8 @@ textarea {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--mute);
   background: var(--ink);
   color: var(--bg);
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
 .admin-table tr:hover td {
   background: #f0f0ec;
