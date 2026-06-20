@@ -27,11 +27,15 @@ function botConfigFromToken(token) {
 }
 
 function posOrdersLabel(token) {
-  if (!(token.scopes ?? []).includes('orders:read')) return null;
-  return botConfigFromToken(token).bot.includePosOrders ? 'POS visible' : 'POS hidden';
+  const includePos = Boolean(botConfigFromToken(token).bot.includePosOrders);
+  const hasOrdersRead = (token.scopes ?? []).includes('orders:read');
+  if (!hasOrdersRead) {
+    return includePos ? 'POS on (needs orders:read)' : 'POS off (needs orders:read)';
+  }
+  return includePos ? 'POS visible' : 'POS hidden';
 }
 
-function BotOrderOptions({ includePosOrders, onChange, idPrefix }) {
+function BotOrderOptions({ includePosOrders, onChange, idPrefix, enabled }) {
   return (
     <div
       style={{
@@ -43,11 +47,15 @@ function BotOrderOptions({ includePosOrders, onChange, idPrefix }) {
       }}
     >
       <div className="caps" style={{ marginBottom: 8, fontSize: 12 }}>Bot integration</div>
-      <label htmlFor={`${idPrefix}-pos-orders`} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <label
+        htmlFor={`${idPrefix}-pos-orders`}
+        style={{ display: 'flex', gap: 8, alignItems: 'flex-start', opacity: enabled ? 1 : 0.65 }}
+      >
         <input
           id={`${idPrefix}-pos-orders`}
           type="checkbox"
           checked={includePosOrders}
+          disabled={!enabled}
           onChange={(e) => onChange(e.target.checked)}
         />
         <span>
@@ -56,6 +64,11 @@ function BotOrderOptions({ includePosOrders, onChange, idPrefix }) {
             When off, the bot operator console and integration order API omit counter sales tagged{' '}
             <span className="mono">source=pos</span>. Manage POS in Admin → Orders instead.
           </span>
+          {!enabled ? (
+            <span className="admin-muted" style={{ display: 'block', marginTop: 6 }}>
+              Check <span className="mono">orders:read</span> above to enable this option.
+            </span>
+          ) : null}
         </span>
       </label>
     </div>
@@ -129,7 +142,7 @@ export default function SettingsIntegrations() {
       const body = {
         name: name.trim(),
         scopes,
-        config: { bot: { includePosOrders: createHasOrdersRead ? includePosOrders : false } },
+        config: { bot: { includePosOrders } },
       };
       const res = await apiFetch(ADMIN.integrationTokens(), {
         method: 'POST',
@@ -159,7 +172,7 @@ export default function SettingsIntegrations() {
         body: {
           name: editName.trim(),
           scopes: editScopes,
-          config: { bot: { includePosOrders: editHasOrdersRead ? editIncludePosOrders : false } },
+          config: { bot: { includePosOrders: editIncludePosOrders } },
         },
         auth: true,
       });
@@ -288,13 +301,12 @@ export default function SettingsIntegrations() {
               ))}
             </div>
           </div>
-          {createHasOrdersRead ? (
-            <BotOrderOptions
-              idPrefix="create"
-              includePosOrders={includePosOrders}
-              onChange={setIncludePosOrders}
-            />
-          ) : null}
+          <BotOrderOptions
+            idPrefix="create"
+            includePosOrders={includePosOrders}
+            onChange={setIncludePosOrders}
+            enabled={createHasOrdersRead}
+          />
           <button type="submit" className="btn sm" style={{ marginTop: 14 }} disabled={creating || !name.trim() || scopes.length === 0}>
             {creating ? 'Creating…' : 'Create token'}
           </button>
@@ -336,13 +348,12 @@ export default function SettingsIntegrations() {
                 ))}
               </div>
             </div>
-            {editHasOrdersRead ? (
-              <BotOrderOptions
-                idPrefix="edit"
-                includePosOrders={editIncludePosOrders}
-                onChange={setEditIncludePosOrders}
-              />
-            ) : null}
+            <BotOrderOptions
+              idPrefix="edit"
+              includePosOrders={editIncludePosOrders}
+              onChange={setEditIncludePosOrders}
+              enabled={editHasOrdersRead}
+            />
             <div className="admin-dialog-actions" style={{ marginTop: 18 }}>
               <button type="button" className="btn sm ghost" onClick={closeEdit} disabled={saving}>
                 Cancel
