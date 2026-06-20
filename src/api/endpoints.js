@@ -15,6 +15,7 @@ export const AUTH = {
 
 export const ADMIN = {
   orders: (query) => pathWithQuery('/api/v1/admin/orders', query),
+  orderPickupQueue: (query) => pathWithQuery('/api/v1/admin/orders/pickup-queue', query),
   order: (id) => `/api/v1/admin/orders/${id}`,
   orderItems: (id) => `/api/v1/admin/orders/${id}/items`,
   orderStatus: (id) => `/api/v1/admin/orders/${id}/status`,

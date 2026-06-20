@@ -7,6 +7,13 @@ import { ORDER_OPS_ROLES } from '../../auth/navConfig.js';
 
 const EDITABLE_STATUSES = ['pending_payment', 'processing'];
 
+function fulfillmentLabel(shipMethod) {
+  if (shipMethod === 'pickup') return 'Store pickup';
+  if (shipMethod === 'express') return 'Express ship';
+  if (shipMethod === 'standard') return 'Standard ship';
+  return shipMethod || '—';
+}
+
 let draftSeq = 0;
 
 export default function OrderDetail() {
@@ -152,11 +159,17 @@ export default function OrderDetail() {
     await load();
   }
 
+  async function markPickedUp() {
+    await apiFetch(ADMIN.orderStatus(id), { method: 'PATCH', body: { status: 'delivered' }, auth: true });
+    await load();
+  }
+
   if (!id) {
     return <p className="admin-err">Missing order id</p>;
   }
 
   const order = data?.order;
+  const isPickup = order?.shipMethod === 'pickup';
 
   return (
     <div>
@@ -170,6 +183,9 @@ export default function OrderDetail() {
         <>
           <p className="admin-page-sub">
             {order.email} · {order.status}
+            {order.shipMethod ? (
+              <> · <span className={`badge ${isPickup ? 'ok' : 'muted'}`}>{fulfillmentLabel(order.shipMethod)}</span></>
+            ) : null}
             {order.shipCarrier ? ` · ${order.shipCarrier} ${order.shipTracking || ''}` : ''}
           </p>
           <div style={{ display: 'grid', gap: 8, marginBottom: 24, fontSize: 14 }}>
@@ -344,16 +360,30 @@ export default function OrderDetail() {
 
           {canWrite ? (
             <div style={{ display: 'grid', gap: 20, maxWidth: 420 }}>
-              <section>
-                <h3 className="caps" style={{ marginBottom: 8 }}>Fulfill (ship)</h3>
-                <label className="field-label" htmlFor="car">Carrier</label>
-                <input id="car" className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
-                <label className="field-label" htmlFor="tr" style={{ marginTop: 8 }}>Tracking</label>
-                <input id="tr" className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} />
-                <button type="button" className="btn sm" style={{ marginTop: 12 }} onClick={() => fulfill().catch((e) => setErr(e.message))}>
-                  Mark shipped
-                </button>
-              </section>
+              {isPickup ? (
+                <section>
+                  <h3 className="caps" style={{ marginBottom: 8 }}>Store pickup</h3>
+                  <p className="admin-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                    Customer collects in store. Use the POS register <strong>Pickups</strong> tab to hand off, or mark delivered here when they&apos;ve collected.
+                  </p>
+                  {['paid', 'processing', 'fulfilling'].includes(order.status) ? (
+                    <button type="button" className="btn sm" style={{ marginTop: 12 }} onClick={() => markPickedUp().catch((e) => setErr(e.message))}>
+                      Mark picked up
+                    </button>
+                  ) : null}
+                </section>
+              ) : (
+                <section>
+                  <h3 className="caps" style={{ marginBottom: 8 }}>Fulfill (ship)</h3>
+                  <label className="field-label" htmlFor="car">Carrier</label>
+                  <input id="car" className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
+                  <label className="field-label" htmlFor="tr" style={{ marginTop: 8 }}>Tracking</label>
+                  <input id="tr" className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} />
+                  <button type="button" className="btn sm" style={{ marginTop: 12 }} onClick={() => fulfill().catch((e) => setErr(e.message))}>
+                    Mark shipped
+                  </button>
+                </section>
+              )}
               <section>
                 <h3 className="caps" style={{ marginBottom: 8 }}>Refund (mock)</h3>
                 <label className="field-label" htmlFor="ref">Amount (optional)</label>

@@ -23,6 +23,7 @@ export const CUSTOMER_ADMIN_ROLES = ['super_admin', 'admin'];
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', roles: STAFF_ROLES },
   { to: '/orders', label: 'Orders', roles: ['super_admin', 'admin', 'ops'] },
+  { to: '/orders/pickups', label: 'Pickup queue', roles: ['super_admin', 'admin', 'ops'] },
   { to: '/preorders', label: 'Pre-orders', roles: ['super_admin', 'admin', 'ops'] },
   { to: '/products', label: 'Products', roles: ['super_admin', 'admin', 'merchandiser'] },
   { to: '/inventory', label: 'Inventory', roles: ['super_admin', 'admin', 'merchandiser'] },
